@@ -38,6 +38,7 @@ Last updated: 2026-08-23
 | Concurrent take dispatch | ❌ tested, rejected | Slower on single GPU (115 s vs ≈87 s for 3 takes); keep sequential |
 | `cache_dit` acceleration option | 🚫 rejected | Upstream: trades audio quality for speed |
 | audio.cpp GGUF alternative provider (Q8) | ✅ **adopted as default** | Owner-approved A/B: ~4× faster full songs, −29% peak VRAM — [plans/2026-08-23-audiocpp-gguf-provider.md](2026-08-23-audiocpp-gguf-provider.md) |
+| Release v0.0.1 | ✅ tagged 2026-08-23 | First release: local single-GPU pipeline + dual provider support |
 | Loudness normalization pass before delivery | ⬜ | Takes peak at 0 dBFS (matches upstream reference behavior) |
 
 ## Repository & Community (open-source standards addendum)

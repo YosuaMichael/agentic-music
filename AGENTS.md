@@ -87,11 +87,13 @@ Never rename artifacts mid-session; superseded takes stay in place with `_vN` su
 
 ## Current Status
 
-Phase 0 gate PASSED (GO-WITH-LIMITS): MiniMax Music 3 serves and generates on a
-single RTX 4090 via colocated two-process topology — see
+**v0.0.1 released (tagged 2026-08-23).** Default generation provider is the
+audio.cpp GGUF CLI (owner-approved); SGLang-Omni remains as the "local"
+reference path. Phase 0 gate PASSED (GO-WITH-LIMITS): MiniMax Music 3 serves
+and generates on a single RTX 4090 via colocated two-process topology — see
 [plans/2026-08-23-phase0-single-gpu-spike.md](plans/2026-08-23-phase0-single-gpu-spike.md)
 for measurements and the exact working config
 ([configs/music3-pipeline.yaml](configs/music3-pipeline.yaml)). End-to-end
 pipeline validated: first song generated and judged in
-`sessions/20260823-105740-first-light/`. Roadmap phases 1–2 complete; 3–5
-polish items remain (CI, packaging polish).
+`sessions/20260823-105740-first-light/`. Roadmap polish items remain
+(CI workflow).

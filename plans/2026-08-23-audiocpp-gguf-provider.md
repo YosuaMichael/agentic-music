@@ -59,7 +59,7 @@ the phase-0 spike.
 | LUFS envelope | −13.0…−14.3 | −13.87 (clip) / −14.38 (song) | ✅ healthy |
 | Determinism per seed | byte-identical | byte-identical (MD5 verified) | ✅ |
 | Output format | 32 kHz stereo WAV | 44.1 kHz stereo WAV | note: analyze/judge handle both |
-| Owner listening | ✅ confirmed clean | ✅ confirmed clean (Q8 take) | gate passed |
+| Owner listening | ✅ confirmed clean | ✅ Q8 take **and** q4-mix take both owner-approved ("good and clear" / "also good") | gate passed |
 
 Component-mix probe (same prompt/seed, budget 240 s): the default mix
 (LM q4_0 + depth q8_0 + transformer q4_0) took 4 min 00 s for 219.9 s audio,

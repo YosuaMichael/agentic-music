@@ -1,6 +1,6 @@
 [project]
 name = "agentic-music"
-version = "0.0.0"
+version = "0.0.1"
 description = "Agent-executable local music generation studio built around MiniMax Music 3 served via SGLang-Omni."
 readme = "README.md"
 requires-python = ">=3.12"
