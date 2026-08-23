@@ -67,6 +67,12 @@ def main() -> int:
         default=None,
         help="Override [generation].max_new_tokens (spike/smoke tests)",
     )
+    parser.add_argument(
+        "--take-id",
+        type=int,
+        default=None,
+        help="Explicit take number (for concurrent dispatch — avoids numbering races)",
+    )
     args = parser.parse_args()
 
     session: Path = args.session
@@ -98,12 +104,15 @@ def main() -> int:
 
     takes_dir = session / "takes"
     takes_dir.mkdir(parents=True, exist_ok=True)
-    existing = [
-        int(p.stem.split("-")[1])
-        for p in takes_dir.glob("take-*.wav")
-        if p.stem.split("-")[1].isdigit()
-    ]
-    take_num = (max(existing) + 1) if existing else 1
+    if args.take_id is not None:
+        take_num = args.take_id
+    else:
+        existing = [
+            int(p.stem.split("-")[1])
+            for p in takes_dir.glob("take-*.wav")
+            if p.stem.split("-")[1].isdigit()
+        ]
+        take_num = (max(existing) + 1) if existing else 1
     take_name = f"take-{take_num:02d}"
     wav_path = takes_dir / f"{take_name}.wav"
     meta_path = takes_dir / f"{take_name}.metadata.json"

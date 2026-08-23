@@ -18,17 +18,26 @@ description: >
 
 1. Read take count + seeds from `configs/provider.toml` (`[generation]`,
    default 3 takes, seeds cycled).
-2. For each take, run as a **background job** (non-streaming generation can
+2. **Dispatch takes SEQUENTIALLY** — measured faster than concurrent dispatch
+   on single-GPU hosts (see plans/2026-08-23-performance-research.md).
+3. For each take, run as a **background job** (non-streaming generation can
    take many minutes):
 
    ```bash
    python scripts/generate.py --session sessions/<song-id> --seed <seed>
    ```
 
-3. Parse each result's `generate/v1` JSON. On success it names the written
+4. Parse each result's `generate/v1` JSON. On success it names the written
    WAV and its sidecar `metadata.json` (seed, params, request timestamp).
-4. Gate: every requested take exists as a non-empty WAV with valid metadata;
+5. Gate: every requested take exists as a non-empty WAV with valid metadata;
    report duration from metadata.
+
+## Cost guidance (from upstream docs)
+
+Wall time scales with `max_new_tokens` (25 frames = 1 second of audio). When
+iterating a caption with the user, render **short clips first**
+(`--max-new-tokens 300–750`) and only render full length once the style is
+approved.
 
 ## Failure handling
 

@@ -34,8 +34,9 @@ Last updated: 2026-08-23
 |---|---|---|
 | Single-GPU serving recipe | ✅ | [configs/music3-pipeline.yaml](../configs/music3-pipeline.yaml): both stages on gpu 0, two processes |
 | Audio-quality fix (float32 synthesis + fp8 AR backbone) | ✅ owner-confirmed by listening | A/B evidence: [plans/2026-08-23-quality-regression-fix.md](2026-08-23-quality-regression-fix.md) |
-| Decode CUDA graphs re-enabled for speed | ⬜ | Blocked earlier by missing nvcc; nvcc now installed — experiment queued |
-| `cache_dit` acceleration option | ⬜ | Untested upstream knob |
+| Decode CUDA graphs re-enabled | ✅ | −12.5% wall time, byte-identical output; capture verified — [plans/2026-08-23-performance-research.md](2026-08-23-performance-research.md) |
+| Concurrent take dispatch | ❌ tested, rejected | Slower on single GPU (115 s vs ≈87 s for 3 takes); keep sequential |
+| `cache_dit` acceleration option | 🚫 rejected | Upstream: trades audio quality for speed |
 | Loudness normalization pass before delivery | ⬜ | Takes peak at 0 dBFS (matches upstream reference behavior) |
 
 ## Repository & Community (open-source standards addendum)

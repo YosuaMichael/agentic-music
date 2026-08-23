@@ -11,6 +11,9 @@
 #   3. minimax_music3_ar.factory_args.server_args_overrides:
 #      quantization fp8 shrinks the 8B AR backbone (~16 GB -> ~8 GB) so the
 #      float32 synthesis stage fits beside it on one 24 GB card.
+#      NOTE: decode CUDA graphs are left at the upstream DEFAULT (enabled) —
+#      they were temporarily disabled while WSL lacked nvcc for flashinfer JIT;
+#      env_setup.sh now provisions cuda-nvcc-13-1 so capture succeeds.
 #
 # NOTE: sgl-omni's --colocate flag is Qwen3-Omni-only and must NOT be used with
 # this model; the declared topology below already runs both GPU stages on gpu 0.
@@ -52,7 +55,6 @@ stages:
     max_concurrency: 16
     server_args_overrides:
       quantization: fp8
-      cuda_graph_backend_decode: disabled
   next: dit_dav
   terminal: false
   route_fn: null
