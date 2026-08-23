@@ -37,7 +37,7 @@ Last updated: 2026-08-23
 | Decode CUDA graphs re-enabled | ✅ | −12.5% wall time, byte-identical output; capture verified — [plans/2026-08-23-performance-research.md](2026-08-23-performance-research.md) |
 | Concurrent take dispatch | ❌ tested, rejected | Slower on single GPU (115 s vs ≈87 s for 3 takes); keep sequential |
 | `cache_dit` acceleration option | 🚫 rejected | Upstream: trades audio quality for speed |
-| audio.cpp GGUF alternative provider (Q8) | 🟨 in progress | Install + integration done; benchmarks pending — [plans/2026-08-23-audiocpp-gguf-provider.md](2026-08-23-audiocpp-gguf-provider.md) |
+| audio.cpp GGUF alternative provider (Q8) | ✅ **adopted as default** | Owner-approved A/B: ~4× faster full songs, −29% peak VRAM — [plans/2026-08-23-audiocpp-gguf-provider.md](2026-08-23-audiocpp-gguf-provider.md) |
 | Loudness normalization pass before delivery | ⬜ | Takes peak at 0 dBFS (matches upstream reference behavior) |
 
 ## Repository & Community (open-source standards addendum)

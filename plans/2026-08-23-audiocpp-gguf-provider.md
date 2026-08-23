@@ -76,11 +76,26 @@ the phase-0 spike.
 4. `mem_saver=true` (default) loads large stages only while needed — key to the
    low peak VRAM.
 
-## Decision rule
+## Decision
 
-Switch default provider only if: quality indistinguishable or acceptable to
-owner AND speed ≥ parity AND VRAM meaningfully lower. Speed + VRAM criteria:
-**met**. Quality: awaiting owner A/B listen
-(`sessions/20260823-105740-first-light/takes/take-05.wav` [SGLang] vs
-`sessions/00000000-000000-audiocpp-ab/takes/take-01.wav` [audio.cpp Q8],
-same caption/lyrics bytes, seed 7 each).
+**ADOPTED as default provider, 2026-08-23.** Owner listened to both A/B takes
+and confirmed: *"it sounds good and clear."* All three criteria met:
+
+1. Quality: ✅ owner-approved (the binding gate)
+2. Speed: ✅ ~4–4.7× faster at full length
+3. VRAM: ✅ −29% peak full-length / −40% short clips
+
+Changes made on adoption:
+
+- `configs/provider.toml` `[provider].type = "audiocpp"` (SGLang config
+  preserved under `[local]`; flip back by setting `"local"`).
+- `scripts/setup_audiocpp.py` — idempotent machine bring-up for this provider
+  (`setup_audiocpp/v1`): pinned binary/runtime downloads, GGUF component set,
+  hardlink-dir assembly.
+- `skills/generate-song/SKILL.md` — dual-provider procedure.
+- `skills/env-setup/SKILL.md` — path A (audiocpp, default) vs path B (SGLang);
+  new Step 4a.
+
+The SGLang float32+fp8 stack remains the fidelity reference and fallback;
+take-for-take comparisons across providers are not meaningful (different
+sampling implementations), so sessions record their provider in take metadata.

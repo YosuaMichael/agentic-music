@@ -1,10 +1,11 @@
 ---
 name: generate-song
 description: >
-  Generate seeded music takes for a prepared session folder by calling the
-  local MiniMax Music 3 endpoint through scripts/generate.py. Use after
-  compose-brief has produced caption.md and lyrics.txt and the server is
-  healthy.
+  Generate seeded music takes for a prepared session folder through the
+  configured provider in configs/provider.toml ([provider].type):
+  "audiocpp" (default — audio.cpp GGUF CLI, no server) or "local"
+  (SGLang-Omni server via scripts/serve.py). Use after compose-brief has
+  produced caption.md and lyrics.txt.
 ---
 
 # Skill: generate-song
@@ -12,7 +13,10 @@ description: >
 ## Preconditions (verify, don't assume)
 
 1. `sessions/<song-id>/caption.md` and `lyrics.txt` exist.
-2. `scripts/serve.py status` reports healthy (run env-setup if not).
+2. Read `[provider].type` from `configs/provider.toml`:
+   - `"audiocpp"` (default): `.tools/audiocpp/audiocpp_cli.exe` exists
+     (run `python scripts/setup_audiocpp.py` if not). No server needed.
+   - `"local"`: `scripts/serve.py status` reports healthy (run env-setup if not).
 
 ## Procedure
 
@@ -20,24 +24,29 @@ description: >
    default 3 takes, seeds cycled).
 2. **Dispatch takes SEQUENTIALLY** — measured faster than concurrent dispatch
    on single-GPU hosts (see plans/2026-08-23-performance-research.md).
-3. For each take, run as a **background job** (non-streaming generation can
-   take many minutes):
+3. For each take, run as a **background job**:
 
    ```bash
+   # type = "audiocpp" (default)
+   python scripts/generate_audiocpp.py --session sessions/<song-id> --seed <seed>
+
+   # type = "local"
    python scripts/generate.py --session sessions/<song-id> --seed <seed>
    ```
 
 4. Parse each result's `generate/v1` JSON. On success it names the written
-   WAV and its sidecar `metadata.json` (seed, params, request timestamp).
+   WAV and its sidecar `metadata.json`. audiocpp results carry additive
+   fields (`provider`, `rtf`) — treat them as optional.
 5. Gate: every requested take exists as a non-empty WAV with valid metadata;
    report duration from metadata.
 
-## Cost guidance (from upstream docs)
+## Cost guidance
 
-Wall time scales with `max_new_tokens` (25 frames = 1 second of audio). When
-iterating a caption with the user, render **short clips first**
-(`--max-new-tokens 300–750`) and only render full length once the style is
-approved.
+Wall time scales with length budget (25 frames = 1 second of audio;
+`--max-new-tokens` on local / `--duration-sec` on audiocpp). When iterating a
+caption with the user, render **short clips first**
+(`--max-new-tokens 300–750` ≈ `--duration-sec 12–30`) and only render full
+length once the style is approved.
 
 ## Failure handling
 

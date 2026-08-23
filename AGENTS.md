@@ -61,7 +61,7 @@ oss/                 git-excluded upstream checkouts created by fetch_upstream.s
 compose-brief      interview user → brief.md + lyrics.txt → $music-caption-rewriter → caption.md
 generate-song      caption + lyrics → N seeded takes → takes/take-NN.wav (+ metadata.json)
 judge-quality      metrics + CLAP alignment → review.json (ranked verdict)
-env-setup          once per machine: audit → WSL/uv env → fetch upstream → weights → serve → healthcheck
+env-setup          once per machine: audit → provider setup (audiocpp default / SGLang path B) → healthcheck
 ```
 
 Run `env-setup` first on a fresh machine. Then loop compose-brief → generate-song →
@@ -74,13 +74,16 @@ Never rename artifacts mid-session; superseded takes stay in place with `_vN` su
 
 ## Platform Notes
 
-- Development host is Windows with WSL2. The inference stack (SGLang-Omni) runs inside the
-  `Ubuntu-24.04` distro; invoke via:
+- **Default generation provider (since 2026-08-23): audio.cpp GGUF CLI**
+  (Windows-native, no WSL needed): `python scripts/generate_audiocpp.py`.
+  Machine setup for it: `python scripts/setup_audiocpp.py`.
+  See plans/2026-08-23-audiocpp-gguf-provider.md.
+- The SGLang-Omni reference stack (path B) runs inside the `Ubuntu-24.04`
+  WSL distro; invoke via:
   `wsl.exe -d Ubuntu-24.04 -u root -- bash -lc '<command>'`
-- Model weights live inside the WSL filesystem (`~/models/minimax-music3`) for I/O speed;
-  they are never inside the repo tree.
-- Generated audio lands in WSL, then gets copied into `sessions/<song-id>/takes/` on the
-  repo side so it joins the file-based state.
+  Start/stop it with `python scripts/serve.py run|status|stop` from Windows.
+- SGLang weights live inside the WSL filesystem (`~/models/minimax-music3`);
+  audio.cpp GGUFs live under `<repo>/models/audiocpp/` — both gitignored.
 
 ## Current Status
 
