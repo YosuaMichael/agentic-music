@@ -1,0 +1,37 @@
+# Provider configuration — which backend generates music, and its defaults.
+# Parsed by scripts/generate.py and scripts/serve.py. Keep TOML simple.
+
+[provider]
+# "local" = SGLang-Omni served on this machine (decision D1).
+type = "local"
+
+[local]
+host = "127.0.0.1"
+port = 8000
+# Model name expected by the served endpoint (upstream README convention).
+model = "minimax_ttm"
+# Path INSIDE the WSL distro where weights were downloaded by env-setup.
+weights_path_wsl = "/root/models/minimax-music3"
+health_timeout_s = 900
+# Single-GPU topology (decision D1): MiniMax-Music3's declared pipeline
+# topology already places BOTH GPU stages (minimax_music3_ar, dit_dav) on
+# gpu 0 in two processes. NOTE: sgl-omni's --colocate flag is Qwen3-Omni-only
+# ("requires a Qwen3OmniSpeechColocatedPipelineConfig") — do not use here.
+# Exported via: sgl-omni config export --model-path <weights> --output-path <cfg>
+# then tuned for single-GPU (see header of configs/music3-pipeline.yaml).
+# Repo-relative path; serve.py maps it into the WSL mount automatically.
+pipeline_config = "configs/music3-pipeline.yaml"
+# serve.py injects "--config <pipeline_config_wsl>" automatically; keep this
+# list for ADDITIONAL flags only (never a competing --config). Server-level
+# knobs (mem fractions, cuda-graph toggles) live in the YAML's
+# minimax_music3_ar.runtime.sglang_server_args instead — extra args here are
+# validated against the pipeline config model and reject unknown fields.
+extra_serve_args = []
+
+[generation]
+# Number of seeded takes per generation round (initial plan §11 default).
+num_takes = 3
+# Seeds cycled if more takes than seeds are requested.
+seeds = [7, 42, 1234]
+response_format = "wav"
+max_new_tokens = 9000

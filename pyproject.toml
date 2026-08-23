@@ -1,0 +1,33 @@
+[project]
+name = "agentic-music"
+version = "0.0.0"
+description = "Agent-executable local music generation studio built around MiniMax Music 3 served via SGLang-Omni."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { file = "LICENSE" }
+authors = [{ name = "agentic-music contributors" }]
+dependencies = []
+
+[project.urls]
+Upstream-model = "https://huggingface.co/MiniMaxAI/MiniMax-Music3"
+
+[dependency-groups]
+dev = ["ruff>=0.8", "pytest>=8"]
+
+# Pipeline scripts are stdlib-only by design so they can run on either side of
+# the WSL boundary without an environment. CLAP scoring is the single
+# exception: it runs inside the WSL venv provisioned by scripts/env_setup.sh.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501", # long lines allowed in docstrings carrying JSON contracts
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

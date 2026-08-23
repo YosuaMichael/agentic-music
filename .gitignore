@@ -1,0 +1,35 @@
+# Upstream checkouts: fetched locally by scripts/fetch_upstream.sh, never committed
+oss/
+
+# Per-song session state and generated audio
+sessions/
+
+# Model weights and local caches
+models/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.ruff_cache/
+.pytest_cache/
+
+# Environment files (keep the example)
+.env
+.env.*
+!.env.example
+
+# Node tooling
+node_modules/
+
+# Generated media; sanitized samples under assets/ are allowed
+*.wav
+*.mp3
+!assets/**/*.wav
+
+# OS cruft
+.DS_Store
+Thumbs.db

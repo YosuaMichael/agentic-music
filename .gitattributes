@@ -1,0 +1,6 @@
+# Normalize all text files to LF so bash scripts survive Windows checkouts
+# (they are executed inside WSL) and diffs stay clean across OSes.
+* text=auto eol=lf
+
+# No binary assets are currently tracked; add explicit rules here if any land,
+# e.g.: *.wav binary

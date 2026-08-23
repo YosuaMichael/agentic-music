@@ -1,0 +1,131 @@
+# MiniMax Music 3 single-GPU pipeline config (owned by agentic-music).
+#
+# Provenance: exported from `sgl-omni config export --model-path <weights>` at
+# pin 945655064d59b98004dd70002e7eb5c8c6e11373 (docs/upstream.md), then tuned
+# for decision D1 (single RTX 4090). Differences from upstream defaults:
+#   1. dit_dav.dtype: kept at upstream default float32 (quality-critical;
+#      bf16 here caused audible noise/breaking artifacts — see Phase 4 notes)
+#      made affordable by fp8-quantizing the AR backbone instead (edit 3).
+#   2. minimax_music3_ar.runtime.sglang_server_args.mem_fraction_static: 0.85
+#      (sgl-omni default 0.5 left no room for the KV cache once weights loaded)
+#   3. minimax_music3_ar.factory_args.server_args_overrides:
+#      quantization fp8 shrinks the 8B AR backbone (~16 GB -> ~8 GB) so the
+#      float32 synthesis stage fits beside it on one 24 GB card.
+#
+# NOTE: sgl-omni's --colocate flag is Qwen3-Omni-only and must NOT be used with
+# this model; the declared topology below already runs both GPU stages on gpu 0.
+
+model_path: /root/models/minimax-music3
+stages:
+- name: preprocessing
+  factory: sglang_omni.models.minimax_music3.stages.create_preprocessing_executor
+  factory_args: {}
+  next: minimax_music3_ar
+  terminal: false
+  route_fn: null
+  gpu: null
+  tp_size: 1
+  parallelism:
+    tp: 1
+  process: minimax_music3_ar
+  runtime:
+    resources:
+      total_gpu_memory_fraction: null
+    max_seq_len: null
+    video_fps: null
+    sglang_server_args:
+      mem_fraction_static: null
+  runtime_arg_map: {}
+  env: {}
+  wait_for: null
+  wait_for_fn: null
+  merge_fn: null
+  stream_to: []
+  stream_done_to_fn: null
+  can_accept_stream_before_payload: false
+  disable_direct_cuda_ipc_payload: false
+  project_payload: {}
+  comm: null
+- name: minimax_music3_ar
+  factory: sglang_omni.models.minimax_music3.stages.create_ar_executor
+  factory_args:
+    max_concurrency: 16
+    server_args_overrides:
+      quantization: fp8
+      cuda_graph_backend_decode: disabled
+  next: dit_dav
+  terminal: false
+  route_fn: null
+  gpu: 0
+  tp_size: 1
+  parallelism:
+    tp: 1
+  process: minimax_music3_ar
+  runtime:
+    resources:
+      total_gpu_memory_fraction: null
+    max_seq_len: null
+    video_fps: null
+    sglang_server_args:
+      mem_fraction_static: 0.85
+  runtime_arg_map: {}
+  env: {}
+  wait_for: null
+  wait_for_fn: null
+  merge_fn: null
+  stream_to:
+  - dit_dav
+  stream_done_to_fn: null
+  can_accept_stream_before_payload: false
+  disable_direct_cuda_ipc_payload: false
+  project_payload: {}
+  comm: null
+- name: dit_dav
+  factory: sglang_omni.models.minimax_music3.stages.create_dit_dav_executor
+  factory_args:
+    dtype: float32
+    dit_steps: 30
+    dit_cfg_scale: 1.7
+    attention_backend: torch_sdpa
+    cache_dit: false
+    compile_acoustic: true
+    breakable_cuda_graph: false
+  next: null
+  terminal: true
+  route_fn: null
+  gpu: 0
+  tp_size: 1
+  parallelism:
+    tp: 1
+  process: minimax_music3_dit_dav
+  runtime:
+    resources:
+      total_gpu_memory_fraction: null
+    max_seq_len: null
+    video_fps: null
+    sglang_server_args:
+      mem_fraction_static: null
+  runtime_arg_map: {}
+  env: {}
+  wait_for: null
+  wait_for_fn: null
+  merge_fn: null
+  stream_to: []
+  stream_done_to_fn: null
+  can_accept_stream_before_payload: true
+  disable_direct_cuda_ipc_payload: false
+  project_payload: {}
+  comm: null
+name: /root/models/minimax-music3
+entry_stage: null
+fused_stages: []
+runtime_overrides: {}
+env_defaults: {}
+placement:
+  max_total_gpu_memory_fraction_per_gpu: 1.0
+  require_memory_fraction_for_colocation: false
+placement_policy: null
+endpoints:
+  base_path: /tmp/sglang_omni
+terminal_stages_fn: null
+config_cls: MiniMaxMusic3PipelineConfig
