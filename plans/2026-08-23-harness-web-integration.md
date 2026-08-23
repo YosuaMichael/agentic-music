@@ -38,18 +38,22 @@ principle "scripts execute":
    `<repo>/sessions/`:
    - `/healthz` (open), `/` HTML index with inline `<audio>` players,
      `/index.json` (`artifacts-index/v1` inventory),
+     `/play/<session>/takes/<file>` **per-take player page** (owner request:
+     links open a browser page with playback controls, metadata — seed,
+     provider, render time — and a Download button, plus sibling-take chips),
      `/files/<session>/takes/<file>` streamed with HTTP Range support
      (verified: 206 + Content-Range; full downloads 200).
    - MIME map (`audio/wav`, `audio/mpeg`, …); traversal attempts rejected
-     (resolve must stay under root — verified 404).
+     (resolve must stay under root — verified 404 through both /files and
+     /play).
    - Binds loopback only; optional shared-token gate (`--token`) on top of
      tailnet identity.
 2. Run as a persistent background job:
    `python scripts/serve_artifacts.py --port 8787`
 3. Expose to tailnet devices:
    `tailscale serve --bg --https=8443 http://127.0.0.1:8787`
-4. Agent pastes `https://<tailnet-host>:8443/files/...` links in chat;
-   browsers play or download directly.
+4. Agent pastes `https://<tailnet-host>:8443/play/...` player-page links in
+   chat; browsers get the listen-and-download experience natively.
 
 Security posture: loopback bind + Tailscale ACLs = tailnet-only reachability.
 Do not port-forward this server to the public internet; if off-tailnet

@@ -11,9 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Artifact sidecar for harness web integration (`scripts/serve_artifacts.py`,
   `artifacts-index/v1`): read-only HTTP server over `sessions/` with HTML
-  player index, JSON inventory, HTTP Range streaming, path-traversal guard,
-  and optional token auth — designed to sit behind Tailscale Serve for
-  multi-device browser access.
+  player index, per-take player pages (`/play/...`: playback, metadata,
+  download button, sibling takes), JSON inventory, HTTP Range streaming,
+  path-traversal guard, and optional token auth — designed to sit behind
+  Tailscale Serve for multi-device browser access.
 - MP3 companions: `scripts/transcode.py` (`transcode/v1`, ffmpeg libmp3lame
   VBR) invoked automatically by the audiocpp generator when
   `[audiocpp].mp3 = true` — ~7× smaller downloads, WAV masters preserved.

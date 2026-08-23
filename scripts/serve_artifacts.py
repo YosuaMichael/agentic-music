@@ -15,6 +15,7 @@ Endpoints:
     /healthz                 liveness probe (always open)
     /                        HTML index: sessions -> takes with inline players
     /index.json              machine-readable session/take inventory
+    /play/<session>/<...>    per-take player page (play + download button)
     /files/<session>/<...>   streamed artifacts (Range supported, audio MIME)
 
 Security model: binds loopback only; every resolved path must stay inside the
@@ -29,6 +30,7 @@ Exit codes: 2 bad args/root; 0 clean shutdown.
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -62,6 +64,7 @@ def build_index(root: Path) -> dict:
                             "file": f.name,
                             "bytes": f.stat().st_size,
                             "url": f"/files/{session_dir.name}/takes/{f.name}",
+                            "page": f"/play/{session_dir.name}/takes/{f.name}",
                         }
                         meta = f.with_name(f.stem + ".metadata.json")
                         if meta.is_file():
@@ -83,7 +86,70 @@ def build_index(root: Path) -> dict:
     return {"schema": "artifacts-index/v1", "sessions": sessions}
 
 
+def render_play_page(root: Path, rel: str) -> str | None:
+    """Per-take landing page: player, download button, siblings, metadata."""
+    target = (root / rel).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError:
+        return None
+    if not target.is_file() or target.suffix.lower() not in (".wav", ".mp3"):
+        return None
+
+    file_url = "/files/" + rel.replace("\\", "/")
+    takes_dir = target.parent
+    meta_path = target.with_suffix(".metadata.json") if target.suffix == ".wav" else \
+        target.with_name(target.stem + ".metadata.json")
+    facts: list[str] = [f"file&nbsp;<code>{html.escape(target.name)}</code>",
+                        f"{target.stat().st_size // 1024} KiB"]
+    seed = provider = None
+    if meta_path.is_file():
+        try:
+            m = json.loads(meta_path.read_text(encoding="utf-8"))
+            seed = m.get("seed")
+            provider = m.get("provider", "local")
+            if m.get("elapsed_s"):
+                facts.append(f"rendered in {m['elapsed_s']} s")
+            if m.get("rtf"):
+                facts.append(f"RTF {m['rtf']}")
+        except Exception:  # noqa: BLE001 - metadata is advisory
+            pass
+    facts.insert(1, f"seed&nbsp;<code>{seed if seed is not None else '?'}</code>")
+    facts.insert(2, f"provider&nbsp;<code>{html.escape(str(provider or 'local'))}</code>")
+
+    siblings = []
+    for f in sorted(takes_dir.glob("*")):
+        if f.suffix.lower() in (".wav", ".mp3") and f != target:
+            rel_sib = f.relative_to(root.resolve()).as_posix()
+            siblings.append(
+                f"<a class='chip' href='/play/{rel_sib}'>{html.escape(f.name)}</a>"
+            )
+
+    return (
+        "<!doctype html><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        f"<title>{html.escape(rel)} — agentic-music</title>"
+        "<style>body{font-family:system-ui;max-width:44rem;margin:3rem auto;padding:0 1rem;"
+        "background:#101418;color:#e8eaed}"
+        "a{color:#8ab4f8}.card{background:#1b2026;border-radius:12px;padding:1.5rem}"
+        ".btn{display:inline-block;background:#8ab4f8;color:#101418;font-weight:600;"
+        "padding:.7rem 1.4rem;border-radius:8px;text-decoration:none;margin-top:1rem}"
+        ".facts span{margin-right:1rem;color:#9aa0a6}.chips{margin-top:1.5rem}"
+        ".chip{display:inline-block;background:#232a31;border-radius:999px;"
+        "padding:.35rem .9rem;margin:.2rem;text-decoration:none;font-size:.9em}</style>"
+        "<p><a href='/'>&larr; all sessions</a></p>"
+        "<div class='card'>"
+        "<h1 style='margin-top:0'>🎵 " + html.escape(target.stem) + "</h1>"
+        "<audio controls preload='metadata' style='width:100%' src='" + file_url + "'></audio>"
+        f"<p class='facts'>{''.join(f'<span>{x}</span>' for x in facts)}</p>"
+        f"<a class='btn' href='{file_url}' download>⬇ Download {target.suffix[1:].upper()}</a>"
+        "</div>"
+        + (f"<div class='chips'>{''.join(siblings)}</div>" if siblings else "")
+    )
+
+
 def render_html(index: dict) -> str:
+    e = html.escape
     rows = []
     for s in index["sessions"]:
         if not s["takes"]:
@@ -91,12 +157,12 @@ def render_html(index: dict) -> str:
         items = []
         for t in s["takes"]:
             items.append(
-                f"<li><code>{t['file']}</code> "
-                f"({t['bytes'] // 1024} KiB, seed {t.get('seed', '?')}, {t.get('provider')}) "
-                f"<a href='{t['url']}'>download</a></li>"
-                "<audio controls preload='none' src='" + t["url"] + "'></audio>"
+                f"<li><a href='{e(t['page'])}'><code>{e(t['file'])}</code></a> "
+                f"({t['bytes'] // 1024} KiB, seed {t.get('seed', '?')}, {e(str(t.get('provider')))}) "
+                f"<a href='{e(t['url'])}'>direct</a> · "
+                f"<audio controls preload='none' src='{e(t['url'])}'></audio></li>"
             )
-        rows.append(f"<h2>{s['session']}</h2><ul>{''.join(items)}</ul>")
+        rows.append(f"<h2>{e(s['session'])}</h2><ul>{''.join(items)}</ul>")
     body = "".join(rows) or "<p>No sessions with takes yet.</p>"
     return (
         "<!doctype html><meta charset='utf-8'>"
@@ -160,6 +226,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/index.json":
             body = json.dumps(build_index(self.root), indent=2).encode("utf-8")
             return self._send(200, body, MIME[".json"])
+
+        if route.startswith("/play/"):
+            rel = unquote(route[len("/play/"):])
+            page = render_play_page(self.root, rel)
+            if page is None:
+                return self._send(404, b"not found\n", "text/plain")
+            return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
 
         if route.startswith("/files/"):
             target = self._resolve(route[len("/files/"):])
