@@ -77,7 +77,41 @@ Native DSH plugin: host half registering `/api/plugins/music/*` routes
 half rendering a sessions/takes panel with inline players. Revisit when
 Phase 1 usage justifies building against harness internals.
 
+## Phase 1.5 (same day): LAN sharing without Tailscale
+
+Owner wanted flatmate access on the home Wi-Fi without extra app installs.
+
+Findings:
+
+- `dsh web --host 0.0.0.0` is **intentionally blocked** by the CLI ("would
+  expose remote code execution to the network") — the low-level webserver
+  supports it, the app refuses.
+- Workaround stack (all verified working):
+  1. Harness keeps its loopback bind; launcher (`dshweb` command +
+     `dsh-web-trusted.cmd`) passes `--trusted-host 192.168.1.114:3080`.
+  2. Windows portproxy bridges LAN→loopback:
+     `netsh interface portproxy add v4tov4 listenaddress=192.168.1.114 listenport=3080 connectaddress=127.0.0.1 connectport=3080`
+     (admin once; persists).
+  3. Firewall rules allow inbound TCP 3080 + 8787.
+  4. Artifact server binds `0.0.0.0:8787` directly.
+- **Secure-context caveat:** browsers only expose `crypto.randomUUID` (and
+  other privileged APIs) on https/localhost. Non-loopback devices therefore
+  hit "crypto.randomUUID is not a function" when creating workspaces.
+  `--trusted-host` cannot fix this (browser-side enforcement). Owner chose
+  **Option A**: per-device Chrome/Edge flag
+  (`chrome://flags/#unsafely-treat-insecure-origin-as-secure` → add
+  `http://192.168.1.114:3080`, relaunch). PC itself uses
+  `http://localhost:3080` (always a secure context).
+
+Known fragilities of this stack (accepted by owner for now):
+
+- DHCP change of `.114` silently breaks both portproxy and habit URLs →
+  set a router reservation when convenient.
+- Each new device needs the flag once.
+- Tailscale remains installed but unplugged (`tailscale serve` proxies
+  removed); re-enabling HTTPS mode later is the clean upgrade path
+  (valid certs → no flags needed, works off-home too).
+
 ## Open items
 
-- Tailscale Serve command needs one-time manual run by owner (needs admin).
 - Token auth currently single shared secret; rotate manually if leaked.
