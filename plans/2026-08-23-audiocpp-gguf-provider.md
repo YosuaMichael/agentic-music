@@ -59,7 +59,13 @@ the phase-0 spike.
 | LUFS envelope | −13.0…−14.3 | −13.87 (clip) / −14.38 (song) | ✅ healthy |
 | Determinism per seed | byte-identical | byte-identical (MD5 verified) | ✅ |
 | Output format | 32 kHz stereo WAV | 44.1 kHz stereo WAV | note: analyze/judge handle both |
-| Owner listening | ✅ confirmed clean | ⬜ pending — A/B session `sessions/00000000-000000-audiocpp-ab/` | gate |
+| Owner listening | ✅ confirmed clean | ✅ confirmed clean (Q8 take) | gate passed |
+
+Component-mix probe (same prompt/seed, budget 240 s): the default mix
+(LM q4_0 + depth q8_0 + transformer q4_0) took 4 min 00 s for 219.9 s audio,
+LUFS −14.25 — i.e. **no speed gain over all-Q8** (workload is compute-bound,
+not bandwidth-bound). All-Q8 therefore stays the default; the q4 components
+remain on disk for future low-VRAM use cases.
 
 ## Integration notes discovered
 

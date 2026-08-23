@@ -54,6 +54,12 @@ def main() -> int:
     )
     parser.add_argument("--duration-sec", type=int, default=None)
     parser.add_argument("--take-id", type=int, default=None)
+    parser.add_argument(
+        "--model-dir",
+        type=Path,
+        default=None,
+        help="Override [audiocpp].model_dir (component-mix A/B tests)",
+    )
     args = parser.parse_args()
 
     session: Path = args.session
@@ -68,7 +74,7 @@ def main() -> int:
     ac, gen = cfg["audiocpp"], cfg["generation"]
     repo_root = args.config.resolve().parent.parent
     cli = repo_root / ac["cli_path"]
-    model_dir = repo_root / ac["model_dir"]
+    model_dir = args.model_dir if args.model_dir else repo_root / ac["model_dir"]
     if not cli.is_file():
         return fail(f"audio.cpp CLI not found: {cli}")
 
