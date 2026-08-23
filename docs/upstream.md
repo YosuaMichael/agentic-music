@@ -12,9 +12,9 @@ locally and git-excluded; this file records what state our work was verified aga
 ## Why these pins
 
 - `minimax-music3`: model card, serving instructions (SGLang-Omni), and the official
-  `music-caption-rewriter` skill documentation referenced by skills/compose-brief.
+  `music-caption-rewriter` skill documentation referenced by `.dsh/skills/compose-brief`.
 - `skills`: MIT-licensed MiniMax agent-skills collection; `minimax-music-gen` interaction
-  protocol adapted into `skills/compose-brief` (attribution in NOTICE).
+  protocol adapted into `.dsh/skills/compose-brief` (attribution in NOTICE).
 
 Digest verification covers exactly the files agentic-music reads; full checkouts are not
 redistributed. See AGENTS.md hard rules before touching `oss/`.

@@ -2,7 +2,7 @@
 """Generate one seeded music take against the configured provider endpoint.
 
 Usage:
-    python scripts/generate.py --session sessions/<song-id> --seed 7 \
+    python scripts/generate.py --session studio/sessions/<song-id> --seed 7 \
                                [--config configs/provider.toml]
 
 Reads caption.md (instructions) and lyrics.txt (input) from the session dir,

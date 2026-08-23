@@ -5,6 +5,15 @@ is to let agents like you set up, run, and iterate on **fully local music genera
 the open-weights **MiniMax Music 3** model, end to end, following written instructions —
 not improvisation.
 
+## Two Workspaces
+
+This repository has two distinct contexts:
+
+- **Creating songs?** Work inside the [`studio/`](studio/) workspace — its
+  [`studio/AGENTS.md`](studio/AGENTS.md) is a lean creator manual, and songs
+  live in `studio/sessions/<song-id>/`. Do not read development plans there.
+- **Developing the repository?** You are in the right place; continue below.
+
 ## Read Order (do not skip)
 
 1. [`plans/INDEX.md`](plans/INDEX.md) — decision history index; read every `active` document.
@@ -19,7 +28,7 @@ plan document and register it in the index — never silently contradict them.
 ## Operating Principles
 
 1. **State lives in files, not chat.** All per-song state is under
-   `sessions/<song-id>/`. Any agent must be able to resume by reading that folder alone.
+   `studio/sessions/<song-id>/`. Any agent must be able to resume by reading that folder alone.
 2. **Agents orchestrate; scripts execute.** Infra steps (audit, env, download, serve,
    generate, analyze) go through `scripts/` CLIs with documented JSON output. Never
    freehand curl/python/pip for those steps. If a script is missing a capability, add it
@@ -33,8 +42,8 @@ plan document and register it in the index — never silently contradict them.
 
 ## Hard Rules (open-source hygiene)
 
-1. NEVER `git add` anything under `oss/`, `sessions/`, `models/`, `.venv/` — they are
-   gitignored; verify with `git status` before committing.
+1. NEVER `git add` anything under `oss/`, `studio/sessions/`, `models/`, `.venv/`,
+   `.tools/` — they are gitignored; verify with `git status` before committing.
 2. Never copy content out of `oss/minimax-music3/` into committed files (no license found
    upstream → all rights reserved). Reference paths, fetch at runtime via
    `scripts/fetch_upstream.sh`. Adapted text from MIT-licensed sources carries a header
@@ -45,12 +54,13 @@ plan document and register it in the index — never silently contradict them.
 ## Repository Map
 
 ```
-AGENTS.md            ← you are here
+AGENTS.md            ← you are here (developer manual)
 plans/               dated, indexed plan documents (decision history)
-skills/              env-setup · compose-brief · generate-song · judge-quality
+.dsh/skills/         the four skills — DSH-native discovery root (compose-brief ·
+                     generate-song · judge-quality · env-setup)
 scripts/             deterministic JSON-out CLIs (the only way infra happens)
 configs/provider.toml  endpoint + generation defaults
-sessions/<song-id>/  per-song state: brief.md, lyrics.txt, caption.md, takes/, review.json
+studio/              song-creation workspace: studio/AGENTS.md + studio/sessions/
 docs/upstream.md     pinned upstream revisions + digests
 oss/                 git-excluded upstream checkouts created by fetch_upstream.sh
 ```
@@ -95,5 +105,5 @@ and generates on a single RTX 4090 via colocated two-process topology — see
 for measurements and the exact working config
 ([configs/music3-pipeline.yaml](configs/music3-pipeline.yaml)). End-to-end
 pipeline validated: first song generated and judged in
-`sessions/20260823-105740-first-light/`. Roadmap polish items remain
+`studio/sessions/20260823-105740-first-light/`. Roadmap polish items remain
 (CI workflow).

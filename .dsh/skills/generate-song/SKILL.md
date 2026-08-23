@@ -12,7 +12,7 @@ description: >
 
 ## Preconditions (verify, don't assume)
 
-1. `sessions/<song-id>/caption.md` and `lyrics.txt` exist.
+1. `studio/sessions/<song-id>/caption.md` and `lyrics.txt` exist.
 2. Read `[provider].type` from `configs/provider.toml`:
    - `"audiocpp"` (default): `.tools/audiocpp/audiocpp_cli.exe` exists
      (run `python scripts/setup_audiocpp.py` if not). No server needed.
@@ -28,10 +28,10 @@ description: >
 
    ```bash
    # type = "audiocpp" (default)
-   python scripts/generate_audiocpp.py --session sessions/<song-id> --seed <seed>
+   python scripts/generate_audiocpp.py --session studio/sessions/<song-id> --seed <seed>
 
    # type = "local"
-   python scripts/generate.py --session sessions/<song-id> --seed <seed>
+   python scripts/generate.py --session studio/sessions/<song-id> --seed <seed>
    ```
 
 4. Parse each result's `generate/v1` JSON. On success it names the written

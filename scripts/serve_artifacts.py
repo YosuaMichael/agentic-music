@@ -2,7 +2,7 @@
 """Read-only artifact server for generated music sessions (Phase 1 web access).
 
 Usage:
-    python scripts/serve_artifacts.py [--root sessions] [--host 127.0.0.1]
+    python scripts/serve_artifacts.py [--root studio/sessions] [--host 127.0.0.1]
         [--port 8787] [--token SECRET]
 
 Runs in the foreground (wrap in a persistent background job). Designed to sit
@@ -51,7 +51,7 @@ CHUNK = 1 << 20  # 1 MiB stream chunks
 
 
 def build_index(root: Path) -> dict:
-    """Inventory sessions/<id>/takes/*.{wav,mp3} + metadata presence."""
+    """Inventory studio/sessions/<id>/takes/*.{wav,mp3} + metadata presence."""
     sessions = []
     if root.is_dir():
         for session_dir in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -297,7 +297,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", type=Path, default=REPO_ROOT / "sessions")
+    parser.add_argument("--root", type=Path, default=REPO_ROOT / "studio" / "sessions")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--token", default=None, help="Shared secret for non-healthz routes")

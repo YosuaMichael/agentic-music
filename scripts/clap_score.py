@@ -3,7 +3,7 @@
 
 Usage (run INSIDE the WSL venv — needs torch/transformers):
     /root/agentic-music-venv/bin/python scripts/clap_score.py \
-        --caption sessions/<id>/caption.md --audio sessions/<id>/takes/take-01.wav
+        --caption studio/sessions/<id>/caption.md --audio studio/sessions/<id>/takes/take-01.wav
 
 Downloads laion/clap-htsat-fused (~2 GB) on first use, cached afterwards.
 If CLAP dependencies are unavailable, returns ok=false with reason so the

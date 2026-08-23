@@ -89,7 +89,7 @@ skips anything already present, and assembles the all-Q8 hardlink model dir.
 Smoke test generation:
 
 ```bash
-python scripts/generate_audiocpp.py --session sessions/<any-session> \
+python scripts/generate_audiocpp.py --session studio/sessions/<any-session> \
   --seed 7 --duration-sec 10 --take-id 900
 ```
 

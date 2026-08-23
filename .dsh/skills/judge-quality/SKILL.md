@@ -22,11 +22,11 @@ scope: >
    ~2 GB download, cached afterwards):
 
    ```bash
-   python scripts/clap_score.py --caption sessions/<song-id>/caption.md \
+   python scripts/clap_score.py --caption studio/sessions/<song-id>/caption.md \
                                 --audio <wav>         # clap_score/v1
    ```
 
-3. Merge into `sessions/<song-id>/review.json`:
+3. Merge into `studio/sessions/<song-id>/review.json`:
 
 ```jsonc
 {

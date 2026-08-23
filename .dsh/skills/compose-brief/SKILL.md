@@ -19,7 +19,7 @@ origin: >
   detailed spec. Instrumental and vocal songs are both in scope.
   Cover versions are NOT possible with local Music 3 — say so if asked.
 
-## Outputs (create `sessions/<song-id>/`, id = `YYYYMMDD-HHMMSS-<slug>`)
+## Outputs (create `studio/sessions/<song-id>/`, id = `YYYYMMDD-HHMMSS-<slug>`)
 
 | Artifact | Content |
 |---|---|

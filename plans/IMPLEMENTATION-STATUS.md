@@ -13,9 +13,9 @@ Last updated: 2026-08-23
 | Item | Status | Evidence |
 |---|---|---|
 | Phase 0 — single-GPU feasibility spike | ✅ | GO-WITH-LIMITS verdict, VRAM measurements: [plans/2026-08-23-phase0-single-gpu-spike.md](2026-08-23-phase0-single-gpu-spike.md) |
-| Phase 1 — scaffold (AGENTS.md, 4 skills, script contracts, configs) | ✅ | [AGENTS.md](../AGENTS.md), [`skills/`](../skills/), [`scripts/`](../scripts/), [configs/provider.toml](../configs/provider.toml) |
+| Phase 1 — scaffold (AGENTS.md, 4 skills, script contracts, configs) | ✅ | [AGENTS.md](../AGENTS.md), [`.dsh/skills/`](../.dsh/skills/), [`scripts/`](../scripts/), [configs/provider.toml](../configs/provider.toml); studio workspace added later (see below) |
 | Phase 2 — env-setup end-to-end on real machine | ✅ | `env_setup/v1` `"ok": true`; healthy server (`serve/v1` healthy) |
-| Phase 3 — compose-brief interview → caption | ✅ | Session artifacts: `sessions/20260823-105740-first-light/{brief,caption}.md` |
+| Phase 3 — compose-brief interview → caption | ✅ | Session artifacts: `studio/sessions/20260823-105740-first-light/{brief,caption}.md` |
 | Phase 4 — generate-song + judge-quality | ✅ | 3 judged takes + `review.json` in same session folder |
 | Phase 5 — CI workflow, packaging polish, publish checklist | 🟨 | pyproject + ruff + pytest done; GitHub Actions workflow not yet added |
 
@@ -53,7 +53,7 @@ Last updated: 2026-08-23
 | GitHub issue + PR templates | ✅ | `.github/` |
 | Pinned upstream fetch + digest verification | ✅ | [scripts/fetch_upstream.sh](../scripts/fetch_upstream.sh), [docs/upstream.md](upstream.md) |
 | Upstream pin re-check for license change (addendum §9.2) | ⬜ | Re-run at next pin bump |
-| caption-rewriter offline fallback in compose-brief | ✅ | [skills/compose-brief/SKILL.md](../skills/compose-brief/SKILL.md) Step 3 manual path |
+| caption-rewriter offline fallback in compose-brief | ✅ | [skills/compose-brief/SKILL.md](../.dsh/skills/compose-brief/SKILL.md) Step 3 manual path |
 | Machine-readable `caption.json` artifact | ✅ | compose-brief Outputs contract |
 | `agents/openai.yaml` metadata for all skills | ✅ | `skills/*/agents/openai.yaml` (agent-ecosystem portability) |
 | Contribute templates back upstream | ⬜ | Upstream maintenance section invites additions; needs upstream license clarity first |

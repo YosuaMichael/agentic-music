@@ -2,15 +2,15 @@
 """Generate one seeded take via the audio.cpp GGUF runtime (alternative provider).
 
 Usage:
-    python scripts/generate_audiocpp.py --session sessions/<song-id> --seed 7 \
+    python scripts/generate_audiocpp.py --session studio/sessions/<song-id> --seed 7 \
         [--duration-sec 360] [--take-id N] [--config configs/provider.toml]
 
 Reads caption.md (--text) and lyrics.txt (--request-option lyrics=...) from the
 session dir, invokes audiocpp_cli.exe --task gen --family minimax_music3, and
 writes the same session artifacts as scripts/generate.py:
 
-    sessions/<song-id>/takes/take-NN.wav
-    sessions/<song-id>/takes/take-NN.metadata.json
+    studio/sessions/<song-id>/takes/take-NN.wav
+    studio/sessions/<song-id>/takes/take-NN.metadata.json
 
 duration-sec maps 1:1 to the AR frame budget (25 frames/second), matching
 max_new_tokens semantics on the SGLang provider (9000 frames = 360 s).

@@ -2,7 +2,7 @@
 """Objective audio metrics for one generated take.
 
 Usage:
-    python scripts/analyze_audio.py --audio sessions/<id>/takes/take-01.wav
+    python scripts/analyze_audio.py --audio studio/sessions/<id>/takes/take-01.wav
 
 Wraps ffprobe/ffmpeg (must be on PATH). Stdlib-only otherwise.
 

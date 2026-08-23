@@ -2,8 +2,8 @@
 """Transcode generated WAV takes to MP3 companions (ffmpeg + libmp3lame).
 
 Usage:
-    python scripts/transcode.py --audio sessions/<id>/takes/take-01.wav [--quality 2]
-    python scripts/transcode.py --session sessions/<id> [--quality 2]
+    python scripts/transcode.py --audio studio/sessions/<id>/takes/take-01.wav [--quality 2]
+    python scripts/transcode.py --session studio/sessions/<id> [--quality 2]
 
 Writes `<stem>.mp3` next to each input (master WAV is never touched). Uses
 ffmpeg's libmp3lame encoder in VBR mode (`-qscale:a`, 0=best .. 9=worst;
