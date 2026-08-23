@@ -1,0 +1,4 @@
+interface:
+  display_name: "agentic-music Env Setup"
+  short_description: "Bring a machine from zero to a healthy local MiniMax Music 3 server"
+  default_prompt: "Use env-setup to audit this machine, prepare the environment, and start the local music generation server."

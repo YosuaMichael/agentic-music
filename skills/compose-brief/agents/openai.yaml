@@ -1,0 +1,4 @@
+interface:
+  display_name: "agentic-music Compose Brief"
+  short_description: "Interview the user and build a Music 3.0 Structured Caption"
+  default_prompt: "Use compose-brief to help me design a song, then prepare its caption and lyrics for local generation."

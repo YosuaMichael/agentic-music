@@ -1,0 +1,4 @@
+interface:
+  display_name: "agentic-music Generate Song"
+  short_description: "Render seeded music takes from a prepared session folder"
+  default_prompt: "Use generate-song to render seeded takes for my prepared session."

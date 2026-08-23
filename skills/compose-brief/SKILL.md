@@ -26,6 +26,7 @@ origin: >
 | `brief.md` | Full interview result: genre/subgenre, mood arc, BPM/key hints, vocal character, instrument list, production feel, references, exclusions |
 | `lyrics.txt` | Final lyrics with Music 3 section tags: `[Intro]` `[Verse]` `[Pre-Chorus]` `[Chorus]` `[Post-Chorus]` `[Bridge]` `[Instrumental]` `[Solo]` `[Outro]`. Empty file + one-line note for instrumentals |
 | `caption.md` (+ `.json` on request) | Structured Caption produced via `$music-caption-rewriter`: Global Metadata / Vocal Details / Arrangement |
+| `caption.json` | Machine-readable twin of the caption for programmatic consumers. Schema: `{"source_skill": "music-caption-rewriter", "inputs": {"description": "<one-paragraph brief summary>", "lyrics_sections": ["[Verse]", "..."]}, "rewritten_caption": "<exact full text of caption.md>"}` |
 
 ## Step 0 — Detect intent
 
@@ -59,17 +60,37 @@ section. Show lyrics formatted with their section markers before moving on.
 
 ## Step 3 — Structured Caption
 
-Invoke `$music-caption-rewriter` with the brief as caption input and
-`lyrics.txt` content as optional tagged lyrics. If the skill material is not
-fetched yet, run env-setup Step 3 (`scripts/fetch_upstream.sh`) first.
+**Preferred path:** invoke `$music-caption-rewriter` with the brief as caption
+input and `lyrics.txt` content as optional tagged lyrics. If the skill material
+is not fetched yet, run env-setup Step 3 (`scripts/fetch_upstream.sh`) first.
+
+**Manual fallback** (host agent has no `$music-caption-rewriter` installed —
+the vendored checkout contains everything needed). Follow the upstream skill's
+own instructions at
+`oss/minimax-music3/skills/music-caption-rewriter/SKILL.md`, condensed:
+
+1. Build a private brief from the interview (never expose it in the caption).
+2. Route via `oss/minimax-music3/skills/music-caption-rewriter/references/genre-router.md`
+   → pick ONE primary family (two only for an explicit fusion).
+3. Open that family's `references/index-*.md` ONLY; select ≤3 template cards
+   with distinct roles: Foundation (identity/groove), Modifier (one matched
+   dimension), Arrangement (timeline logic).
+4. Read ONLY those selected `templates/*.txt` files.
+5. Synthesize a NEW caption — never copy sentences or full structures from
+   templates; do not inherit their key/BPM/vocalist specifics.
 
 Hard rules inherited from the upstream skill:
 
 - Lyric text NEVER enters the caption; only bracketed section tags act as
   musical directives inside the Arrangement section.
-- Preserve explicit musical constraints from the user verbatim.
+- Preserve explicit musical constraints from the user verbatim; keep
+  exclusions (e.g., "no EDM") even if a section tag suggests otherwise.
+- Output exactly three headings — Global Metadata / Vocal Details /
+  Arrangement (~250–450 words) — and run the upstream SKILL.md validation
+  checklist before writing anything to disk.
 
-Save result to `caption.md`.
+Save the result to `caption.md` AND the machine-readable twin to
+`caption.json` (schema in Outputs above).
 
 ## Step 4 — Preview-and-confirm gate (mandatory)
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "agentic-music Judge Quality"
+  short_description: "Score and rank generated takes with metrics and CLAP alignment"
+  default_prompt: "Use judge-quality to score and rank the takes in this session."

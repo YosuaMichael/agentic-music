@@ -49,6 +49,10 @@ Last updated: 2026-08-23
 | GitHub issue + PR templates | ✅ | `.github/` |
 | Pinned upstream fetch + digest verification | ✅ | [scripts/fetch_upstream.sh](../scripts/fetch_upstream.sh), [docs/upstream.md](upstream.md) |
 | Upstream pin re-check for license change (addendum §9.2) | ⬜ | Re-run at next pin bump |
+| caption-rewriter offline fallback in compose-brief | ✅ | [skills/compose-brief/SKILL.md](../skills/compose-brief/SKILL.md) Step 3 manual path |
+| Machine-readable `caption.json` artifact | ✅ | compose-brief Outputs contract |
+| `agents/openai.yaml` metadata for all skills | ✅ | `skills/*/agents/openai.yaml` (agent-ecosystem portability) |
+| Contribute templates back upstream | ⬜ | Upstream maintenance section invites additions; needs upstream license clarity first |
 | Secret-scan pre-commit hook | ⬜ | Standards addendum §5 — land with CI |
 | GitHub Actions CI (ubuntu+windows: ruff, pytest) | ⬜ | Phase 5 |
 | Project name finalized | ✅ | `agentic-music` @ github.com/YosuaMichael/agentic-music |
