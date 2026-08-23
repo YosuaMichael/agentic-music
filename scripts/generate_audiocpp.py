@@ -16,7 +16,8 @@ duration-sec maps 1:1 to the AR frame budget (25 frames/second), matching
 max_new_tokens semantics on the SGLang provider (9000 frames = 360 s).
 
 JSON contract (stdout) — generate/v1, identical shape to scripts/generate.py,
-with two additive fields ("provider": "audiocpp", "rtf": float|null).
+with additive fields ("provider": "audiocpp", "rtf": float|null, and when
+[audiocpp].mp3 is enabled: "mp3": path|null, "mp3_bytes").
 Adding optional keys is non-breaking under our schema policy.
 
 Exit codes: 0 success; 2 bad inputs; 8 CLI execution failure.
@@ -183,23 +184,43 @@ def main() -> int:
     meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     rtf = round(elapsed / audio_s, 2) if audio_s > 0 else None
-    print(
-        json.dumps(
-            {
-                "schema": "generate/v1",
-                "ok": True,
-                "provider": "audiocpp",
-                "rtf": rtf,
-                "take": take_name,
-                "wav": str(wav_path),
-                "metadata": str(meta_path),
-                "bytes": size,
-                "elapsed_s": elapsed,
-                "error": None,
-            },
-            indent=2,
+    result = {
+        "schema": "generate/v1",
+        "ok": True,
+        "provider": "audiocpp",
+        "rtf": rtf,
+        "take": take_name,
+        "wav": str(wav_path),
+        "metadata": str(meta_path),
+        "bytes": size,
+        "elapsed_s": elapsed,
+        "error": None,
+    }
+    if ac.get("mp3"):
+        tr = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).resolve().parent / "transcode.py"),
+                "--audio", str(wav_path),
+                "--quality", str(ac.get("mp3_quality", 2)),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=1800,
         )
-    )
+        try:
+            tr_out = json.loads(tr.stdout or "{}")
+        except json.JSONDecodeError:
+            tr_out = {}
+        if tr.returncode == 0 and tr_out.get("ok") and tr_out.get("outputs"):
+            mp3 = Path(tr_out["outputs"][0]["mp3"])
+            result["mp3"] = str(mp3)
+            result["mp3_bytes"] = mp3.stat().st_size
+        else:
+            # Non-fatal: WAV remains the master artifact either way.
+            sys.stderr.write(f"[generate_audiocpp] mp3 companion skipped: {tr_out}\n")
+            result["mp3"] = None
+    print(json.dumps(result, indent=2))
     return 0
 
 

@@ -36,9 +36,14 @@ description: >
 
 4. Parse each result's `generate/v1` JSON. On success it names the written
    WAV and its sidecar `metadata.json`. audiocpp results carry additive
-   fields (`provider`, `rtf`) — treat them as optional.
+   fields (`provider`, `rtf`, and `mp3`/`mp3_bytes` when the MP3 companion
+   is enabled — it is by default).
 5. Gate: every requested take exists as a non-empty WAV with valid metadata;
    report duration from metadata.
+6. For browser access from other devices, mention the artifact server:
+   `python scripts/serve_artifacts.py` behind Tailscale Serve serves every
+   session's takes with play/download links — see
+   plans/2026-08-23-harness-web-integration.md.
 
 ## Cost guidance
 

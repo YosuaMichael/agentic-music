@@ -57,6 +57,11 @@ num_inference_steps = 30
 guidance_scale = 1.7
 ar_guidance_scale = 1.5
 top_k = 50
+# MP3 companion: after each WAV take, also write <stem>.mp3 (LAME VBR,
+# quality 0..9, 2 = ~190 kbps transparent). Master WAV is always kept for
+# judging/CLAP; the MP3 exists for small downloads from the artifact server.
+mp3 = true
+mp3_quality = 2
 # Pinned downloads for scripts/setup_audiocpp.py (idempotent machine setup).
 release_zip_cli = "https://github.com/0xShug0/audio.cpp/releases/download/release-0.6.1/audiocpp-windows-cuda-balance-26dcb5c4.zip"
 release_zip_runtime = "https://github.com/0xShug0/audio.cpp/releases/download/release-0.6.1/audiocpp-windows-cuda-runtime.zip"
