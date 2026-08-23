@@ -7,6 +7,9 @@ sessions/
 # Model weights and local caches
 models/
 
+# Local native tooling (audio.cpp binaries etc.)
+.tools/
+
 # Python
 .venv/
 __pycache__/

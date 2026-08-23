@@ -21,4 +21,5 @@ All planning documents live in this folder. Every plan document is indexed here,
 | 2026-08-23 | [2026-08-23-phase0-single-gpu-spike.md](2026-08-23-phase0-single-gpu-spike.md) | Phase 0 gate: pre-registered criteria and measurements for single-GPU serving attempt | active |
 | 2026-08-23 | [2026-08-23-quality-regression-fix.md](2026-08-23-quality-regression-fix.md) | Root cause and fix for bf16 synthesis artifacts: hybrid float32 DiT/DAV + fp8 AR config | active |
 | 2026-08-23 | [2026-08-23-performance-research.md](2026-08-23-performance-research.md) | Speed/memory research: cookbook facts, decode-graphs adoption (+12.5%), concurrency rejected, quality knobs kept off | active |
+| 2026-08-23 | [2026-08-23-audiocpp-gguf-provider.md](2026-08-23-audiocpp-gguf-provider.md) | audio.cpp GGUF provider evaluation: install, integration, benchmarks vs SGLang (in progress) | active |
 | — | [IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md) | Living implementation tracker (not a dated plan doc; updated in place as items land) | tracking |

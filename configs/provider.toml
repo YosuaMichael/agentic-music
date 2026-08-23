@@ -35,3 +35,26 @@ num_takes = 3
 seeds = [7, 42, 1234]
 response_format = "wav"
 max_new_tokens = 9000
+
+# ---------------------------------------------------------------------------
+# Alternative provider: audio.cpp GGUF runtime (pure C++, no server needed).
+# Selected with `type = "audiocpp"` under [provider]. See
+# plans/2026-08-23-audiocpp-gguf-provider.md for the evaluation record.
+
+[audiocpp]
+cli_path = ".tools/audiocpp/audiocpp_cli.exe"
+# Q8 components under default-package filenames (release 0.6.1 validates the
+# default q4_0 package file list BEFORE applying component session-options, so
+# this sibling dir NTFS-hardlinks the Q8 GGUFs under those names; zero extra
+# disk). See plans/2026-08-23-audiocpp-gguf-provider.md.
+model_dir = "models/audiocpp/Music3-GGUF-q8asdefault"
+backend = "cuda"
+family = "minimax_music3"
+num_inference_steps = 30
+guidance_scale = 1.7
+ar_guidance_scale = 1.5
+top_k = 50
+# Component GGUF overrides are NOT set: release 0.6.1 requires the default
+# package file names to exist before honoring overrides, so the all-Q8 mix is
+# provided by the hardlink directory selected via model_dir above.
+# To A/B other mixes, add e.g.:  language_model_gguf = "language_model_q4_0.gguf"
