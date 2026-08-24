@@ -12,7 +12,10 @@ description: >
 
 ## Preconditions (verify, don't assume)
 
-1. `studio/sessions/<song-id>/caption.md` and `lyrics.txt` exist.
+1. All four artifacts exist NON-EMPTY on disk — verify by listing the session
+   folder itself, never by trusting earlier write results (a merged/dropped
+   tool invocation can silently lose a file): `brief.md`, `lyrics.txt`,
+   `caption.md`, `caption.json`.
 2. Read `[provider].type` from `configs/provider.toml`:
    - `"audiocpp"` (default): `.tools/audiocpp/audiocpp_cli.exe` exists
      (run `python scripts/setup_audiocpp.py` if not). No server needed.
@@ -45,6 +48,23 @@ description: >
    session's takes with play/download links — see
    plans/2026-08-23-harness-web-integration.md.
 
+## Dispatch hygiene & lost-job recovery
+
+A malformed or merged tool invocation can echo a job id while nothing
+actually registers — the take then sits "pending" forever while the GPU idles.
+Guard against it:
+
+1. **One tool call per invocation.** Never merge a background dispatch with
+   any other call in a single block.
+2. **Verify liveness before reporting an ETA.** After every dispatch:
+   - reading the job must NOT answer `unknown job`; and
+   - within ~60 s, either `nvidia-smi` shows high GPU utilization with the
+     expected VRAM footprint, or fresh files appear under `<session>/takes/`.
+3. **Recovery protocol** when liveness fails (unregistered id, idle GPU, no
+   new files after ~5 min): re-list jobs to confirm the loss, relaunch the
+   identical command as a NEW background job, then repeat step 2. Never leave
+   the session waiting on an id that shows no evidence of running.
+
 ## Cost guidance
 
 Wall time scales with length budget (25 frames = 1 second of audio;
@@ -61,6 +81,7 @@ length once the style is approved.
 | Generation exceeds health timeout | Kill job, mark take failed in metadata, retry once |
 | Content filter rejection | Report to user with reason; adjust brief/caption via compose-brief |
 | Truncated/silent audio | Keep the file, flag it; judge-quality will quantify the defect |
+| Job id `unknown` / GPU idle after dispatch | Dispatch was silently lost: relaunch as a fresh background job and verify GPU utilization before reporting any ETA |
 
 Never delete failed takes — rename with `_failed` suffix so evidence persists.
 

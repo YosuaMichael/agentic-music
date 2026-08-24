@@ -98,6 +98,11 @@ Show the user: category, mode, one-paragraph creative summary, lyrics excerpt,
 caption highlights. Generate nothing until the user confirms or requests
 edits. Loop edits through Steps 1–3 as needed.
 
+Before the gate, list the session folder and confirm all four artifacts
+(`brief.md`, `lyrics.txt`, `caption.md`, `caption.json`) exist non-empty on
+disk. A merged or dropped tool invocation can silently lose a write — verify
+on disk instead of trusting earlier tool results.
+
 ## Handoff
 
 On confirmation, tell the user you are invoking `generate-song` with this
