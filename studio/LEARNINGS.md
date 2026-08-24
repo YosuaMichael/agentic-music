@@ -38,3 +38,8 @@ themselves, fold it into the skill text and prune the entry here.
 - Symptom: "the same song" regenerated differently after tidying whitespace in caption/lyrics.
 - Cause: prompt bytes seed the backbone KV cache; rewrites change audio even with the same seed.
 - Rule: never "tidy" session artifacts between regeneration rounds; byte-identical inputs are the reproducibility contract.
+
+### 2026-08-23 · mood-adjectives-dont-flip-style
+- Symptom: every take rendered one homogeneous style across both story perspectives; the optimistic-vs-pessimistic duality was inaudible despite "brighter shade" / "darker minor coloring" caption language.
+- Cause: mixing-level mood adjectives are garnish — generative models homogenize sections unless contrast is specified as different instruments, groove, texture, and vocal production per section.
+- Rule: encode sectional contrast as concrete palette flips (instrument swaps, half-time snaps, dry-vs-cavernous reverb, harmony-free vs stacked vocals), never as mood adjectives alone.
