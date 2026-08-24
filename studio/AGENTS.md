@@ -29,7 +29,10 @@ Rule) in the same turn. Rules in that file override habit.
   compose-brief, one folder per song.
 - Provider is pre-configured in `configs/provider.toml` (audio.cpp GGUF,
   default). A full song renders in ~4 minutes; short clips are faster.
-- Every new take also produces an `.mp3` companion for sharing.
+- Every new take also produces an `.mp3` companion for sharing, plus frozen
+  per-take copies of the caption/lyrics that produced it
+  (`takes/take-NN.caption.md`, `.lyrics.txt`, `.caption.json`) — lyric/caption
+  revisions at the session root never rewrite a take's history.
 - Shareable player links look like:
   `http://192.168.1.114:8787/play/<session-id>/takes/take-01.mp3`
   (artifact server must be running; the `dshweb` launcher starts it together

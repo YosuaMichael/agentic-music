@@ -23,10 +23,13 @@ scope: >
    ```
 
 2. Semantic alignment of caption vs audio (needs CLAP model on first run,
-   ~2 GB download, cached afterwards):
+   ~2 GB download, cached afterwards). **Use each take's own caption
+   snapshot** (`takes/take-NN.caption.md`) when present — a session may mix
+   takes rendered from different lyric/caption revisions; fall back to the
+   root `caption.md` only for legacy takes without a snapshot:
 
    ```bash
-   python scripts/clap_score.py --caption studio/sessions/<song-id>/caption.md \
+   python scripts/clap_score.py --caption <take-NN.caption.md or root caption.md> \
                                 --audio <wav>         # clap_score/v1
    ```
 

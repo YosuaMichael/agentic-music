@@ -45,7 +45,10 @@ description: >
 5. Parse each result's `generate/v1` JSON. On success it names the written
    WAV and its sidecar `metadata.json`. audiocpp results carry additive
    fields (`provider`, `rtf`, and `mp3`/`mp3_bytes` when the MP3 companion
-   is enabled — it is by default).
+   is enabled — it is by default). The generator also snapshots the exact
+   `caption.md` / `lyrics.txt` / `caption.json` into per-take copies
+   (`take-NN.caption.md`, …) — provenance survives later revisions, so never
+   edit or delete those per-take copies.
 6. Gate: every requested take exists as a non-empty WAV with valid metadata.
 7. **Report quick facts, then STOP and ask about judging.** Present a compact
    table per take: audio duration, generation wall time (elapsed_s), RTF,

@@ -157,6 +157,19 @@ def main() -> int:
         return 8
 
     size = wav_path.stat().st_size
+
+    # Provenance snapshots: freeze the EXACT inputs that produced this take,
+    # so later lyric/caption revisions never orphan older renders.
+    import shutil
+
+    for src, suffix in (
+        (caption_path, ".caption.md"),
+        (lyrics_path, ".lyrics.txt"),
+        (session / "caption.json", ".caption.json"),
+    ):
+        if src.is_file():
+            shutil.copyfile(src, takes_dir / f"{take_name}{suffix}")
+
     # Read true format from the WAV header (audio.cpp emits 44.1 kHz stereo,
     # upstream Python emits 32 kHz — never assume).
     import struct

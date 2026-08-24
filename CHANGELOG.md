@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Per-take provenance snapshots**: every generation now freezes the exact
+  `caption.md` / `lyrics.txt` / `caption.json` that produced it into
+  `takes/take-NN.caption.md`, `.lyrics.txt`, `.caption.json` — lyric and
+  caption revisions at the session root no longer orphan or misattribute
+  older renders. judge-quality scores each take against its own snapshot
+  when present.
 - **Studio learnings system** (`studio/learnings/`, gitignored per-machine):
   append-only mistake memory consulted at the start of every creation skill;
   corrective feedback from the user becomes a dated Symptom/Cause/Rule entry

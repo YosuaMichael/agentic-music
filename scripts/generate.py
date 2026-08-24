@@ -137,6 +137,19 @@ def main() -> int:
     elapsed = round(time.monotonic() - started, 1)
     wav_path.write_bytes(body)
 
+    # Provenance snapshots: freeze the EXACT inputs that produced this take,
+    # so later lyric/caption revisions never orphan older renders.
+    import shutil
+
+    for src, suffix in (
+        (session / "caption.md", ".caption.md"),
+        (session / "lyrics.txt", ".lyrics.txt"),
+        (session / "caption.json", ".caption.json"),
+    ):
+        if src.is_file():
+            shutil.copyfile(src, takes_dir / f"{take_name}{suffix}")
+
+
     metadata = {
         "schema": "generate_meta/v1",
         "take": take_name,

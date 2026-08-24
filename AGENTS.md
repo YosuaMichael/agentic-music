@@ -81,6 +81,9 @@ judge-quality, presenting ranked results to the user between iterations.
 
 Song id format: `YYYYMMDD-HHMMSS-<slug>`. Artifacts are fixed names (see initial plan §7).
 Never rename artifacts mid-session; superseded takes stay in place with `_vN` suffixes.
+Root `lyrics.txt` / `caption.md` are the canonical *working* copies; each generation
+also freezes per-take provenance snapshots (`takes/take-NN.caption.md`,
+`take-NN.lyrics.txt`, `take-NN.caption.json`) — treat those as immutable history.
 
 ## Platform Notes
 
