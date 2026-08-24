@@ -40,3 +40,7 @@ Rule) in the same turn. Rules in that file override habit.
   `python scripts/serve_artifacts.py --host 0.0.0.0 --port 8787`).
 - Sampling parameters (temperature/top_p) do not exist on this model; length
   budget only. Tags in lyrics sit on their own lines.
+- First run (no `oss/` yet): `oss/minimax-music3` and `oss/skills` are
+  gitignored upstream checkouts (~few MB) needed by `compose-brief`.
+  Fetch them once with `bash scripts/fetch_upstream.sh` (Windows: Git Bash,
+  or `wsl bash <repo-in-wsl>/scripts/fetch_upstream.sh`). No GPU/WSL required.

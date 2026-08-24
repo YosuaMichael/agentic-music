@@ -65,8 +65,10 @@ section. Show lyrics formatted with their section markers before moving on.
 ## Step 3 — Structured Caption
 
 **Preferred path:** invoke `$music-caption-rewriter` with the brief as caption
-input and `lyrics.txt` content as optional tagged lyrics. If the skill material
-is not fetched yet, run env-setup Step 3 (`scripts/fetch_upstream.sh`) first.
+input and `lyrics.txt` content as optional tagged lyrics. If the material is
+not fetched yet (`oss/minimax-music3` missing), fetch it first with
+`bash scripts/fetch_upstream.sh` (Windows: Git Bash, or
+`wsl bash <repo-in-wsl>/scripts/fetch_upstream.sh`) — see also env-setup Step 3.
 
 **Manual fallback** (host agent has no `$music-caption-rewriter` installed —
 the vendored checkout contains everything needed). Follow the upstream skill's

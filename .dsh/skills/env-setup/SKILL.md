@@ -53,8 +53,12 @@ Gate: GPU line visible AND HTTP 200. Repo path inside WSL is
 
 ## Step 3 — Pin and verify upstream references
 
+Fetches gitignored upstream checkouts into `oss/` (~few MB, no GPU). Plain
+`bash`+`git` — works on Windows via Git Bash **without WSL**:
+
 ```bash
-wsl.exe -d Ubuntu-24.04 -u root -- bash <repo-in-wsl>/scripts/fetch_upstream.sh
+bash scripts/fetch_upstream.sh
+# alternative (WSL path B): wsl.exe -d Ubuntu-24.04 -u root -- bash <repo-in-wsl>/scripts/fetch_upstream.sh
 ```
 
 Parse `fetch_upstream/v1`. Gate: `"ok": true`, both repos verified, zero
