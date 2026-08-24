@@ -33,3 +33,17 @@ and references or adapts third-party material as described below.
    Downloaded by end users directly from Hugging Face under the MiniMax-Music3
    Community License, which governs their use. Weights are not included with,
    or redistributed by, this product.
+
+5. audio.cpp runtime (default inference provider)
+   https://github.com/0xShug0/audio.cpp
+
+   Apache-2.0 License. The pinned Windows CUDA release binaries and their CUDA
+   runtime pack are downloaded at setup time (scripts/setup_audiocpp.py) into a
+   git-excluded local directory; they are NOT redistributed with this product.
+
+6. MiniMax-Music3 GGUF quantization (community)
+   https://huggingface.co/audio-cpp/MiniMax-Music3-GGUF
+
+   Downloaded by end users at setup time under the repository's stated license.
+   Quantized component files are not included with, or redistributed by, this
+   product.
