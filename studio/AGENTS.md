@@ -13,14 +13,15 @@ user instead of fixing infrastructure.
    player links), then **ask** whether to run auto-judgement — never judge
    unprompted, and never assume a take count: ask.
 3. Do not read repository plans or decision history; everything needed to
-   make a song lives in the skills, `LEARNINGS.md`, and this file.
+   make a song lives in the skills, `learnings/`, and this file.
 
 ## Learnings (self-evolution)
 
-`LEARNINGS.md` beside this file is the studio's memory of past mistakes.
-Skills consult it at their start; you maintain it: whenever the user corrects
-a mistake or something goes wrong unexpectedly, append a dated entry
-(Symptom / Cause / Rule) in the same turn. Rules in that file override habit.
+`learnings/LEARNINGS.md` is the studio's memory of past mistakes (gitignored —
+personal to each machine; create folder and file if missing). Skills consult
+it at their start; you maintain it: whenever the user corrects a mistake or
+something goes wrong unexpectedly, append a dated entry (Symptom / Cause /
+Rule) in the same turn. Rules in that file override habit.
 
 ## Facts
 

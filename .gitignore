@@ -4,6 +4,9 @@ oss/
 # Per-song session state and generated audio
 sessions/
 
+# Studio learnings: personal runtime memory, kept out of the public repo
+studio/learnings/
+
 # Model weights and local caches
 models/
 

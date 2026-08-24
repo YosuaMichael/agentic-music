@@ -30,7 +30,8 @@ origin: >
 
 ## Step 0 — Detect intent
 
-0. **Learnings check.** Skim `studio/LEARNINGS.md` first; apply its rules
+0. **Learnings check.** Skim `studio/learnings/LEARNINGS.md` first (gitignored;
+   if missing, treat as empty); apply its rules
    throughout the interview and artifact writing.
 
 1. Song category: **vocal** or **instrumental** (cover → explain unsupported locally).

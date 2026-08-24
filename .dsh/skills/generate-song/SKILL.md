@@ -23,8 +23,9 @@ description: >
 
 ## Procedure
 
-1. **Learnings check.** Skim `studio/LEARNINGS.md` (small, append-only) before
-   dispatching anything; its rules override habit.
+1. **Learnings check.** Skim `studio/learnings/LEARNINGS.md` (small, append-only,
+   gitignored — if missing, treat as empty) before dispatching anything; its
+   rules override habit.
 2. **Ask the user how many takes** (offer the configured default from
    `[generation].num_takes`, usually 3; one take is fine for caption
    iteration). Seeds cycle from `[generation].seeds`. Only proceed with the
@@ -56,9 +57,10 @@ description: >
 ## Learnings protocol
 
 When the user corrects a mistake, or a take/session goes wrong in a way the
-skill did not anticipate: append a dated entry to `studio/LEARNINGS.md`
-(Symptom / Cause / Rule) in the same turn — do not defer it. Rules there
-override habit on every future session.
+skill did not anticipate: append a dated entry to
+`studio/learnings/LEARNINGS.md` (Symptom / Cause / Rule) in the same turn —
+do not defer it. Create the folder/file if missing. Rules there override habit
+on every future session.
 
 ## Dispatch hygiene & lost-job recovery
 

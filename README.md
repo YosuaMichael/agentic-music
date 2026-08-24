@@ -69,7 +69,7 @@ Two agent workspaces, one pipeline:
 - **`studio/`** — the creation context. A lean `AGENTS.md` tells the agent to start
   composing immediately, ask how many takes you want, report duration/wall-time per
   take, and never run quality judging without asking first. Mistakes and user feedback
-  are recorded in [`studio/LEARNINGS.md`](studio/LEARNINGS.md), which every skill
+  are recorded in `studio/learnings/` (gitignored, per-machine), which every skill
   consults before acting — the studio gets better the more you use it.
 - **Repository root** — development context: decision history in
   [`plans/`](plans/INDEX.md), deterministic JSON-out `scripts/`, and the four skills in
