@@ -12,6 +12,9 @@ scope: >
 
 ## Procedure
 
+0. **Learnings check.** Skim `studio/LEARNINGS.md`; apply its rules while
+   scoring. This skill runs only when the user opted in after generation.
+
 1. For every `takes/take-*.wav` in the session:
 
    ```bash

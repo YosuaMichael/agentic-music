@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Studio learnings system** (`studio/LEARNINGS.md`): append-only mistake
+  memory consulted at the start of every creation skill; corrective feedback
+  from the user becomes a dated Symptom/Cause/Rule entry in the same turn,
+  so repeated mistakes are prevented dynamically. Seeded with four real
+  lessons (lost background jobs, trust-disk-not-tool-results, lyric-tag line
+  loss, byte-exact reproducibility).
+- **Interactive generation flow**: generate-song now asks how many takes to
+  render (config default only as suggestion), reports per-take quick facts
+  (duration, wall time, RTF, MP3 size, player links) after rendering, and
+  runs auto-judgement only when the user explicitly opts in.
+
+### Changed
+
+- Repository split into two agent workspaces: `studio/` (lean creator manual,
+  songs under `studio/sessions/`) and repo root (development). Skills moved
+  to `.dsh/skills/` — DSH's native discovery root, so all four skills are
+  auto-cataloged in every project session.
+- Artifact server (`serve_artifacts.py`) defaults to serving
+  `studio/sessions/`.
+
+### Added (post-0.0.1 batch)
+
 - Artifact sidecar for harness web integration (`scripts/serve_artifacts.py`,
   `artifacts-index/v1`): read-only HTTP server over `sessions/` with HTML
   player index, per-take player pages (`/play/...`: playback, metadata,

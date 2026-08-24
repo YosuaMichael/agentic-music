@@ -23,11 +23,15 @@ description: >
 
 ## Procedure
 
-1. Read take count + seeds from `configs/provider.toml` (`[generation]`,
-   default 3 takes, seeds cycled).
-2. **Dispatch takes SEQUENTIALLY** — measured faster than concurrent dispatch
+1. **Learnings check.** Skim `studio/LEARNINGS.md` (small, append-only) before
+   dispatching anything; its rules override habit.
+2. **Ask the user how many takes** (offer the configured default from
+   `[generation].num_takes`, usually 3; one take is fine for caption
+   iteration). Seeds cycle from `[generation].seeds`. Only proceed with the
+   number the user confirmed — never assume.
+3. **Dispatch takes SEQUENTIALLY** — measured faster than concurrent dispatch
    on single-GPU hosts (see plans/2026-08-23-performance-research.md).
-3. For each take, run as a **background job**:
+4. For each take, run as a **background job**:
 
    ```bash
    # type = "audiocpp" (default)
@@ -37,16 +41,24 @@ description: >
    python scripts/generate.py --session studio/sessions/<song-id> --seed <seed>
    ```
 
-4. Parse each result's `generate/v1` JSON. On success it names the written
+5. Parse each result's `generate/v1` JSON. On success it names the written
    WAV and its sidecar `metadata.json`. audiocpp results carry additive
    fields (`provider`, `rtf`, and `mp3`/`mp3_bytes` when the MP3 companion
    is enabled — it is by default).
-5. Gate: every requested take exists as a non-empty WAV with valid metadata;
-   report duration from metadata.
-6. For browser access from other devices, mention the artifact server:
-   `python scripts/serve_artifacts.py` behind Tailscale Serve serves every
-   session's takes with play/download links — see
-   plans/2026-08-23-harness-web-integration.md.
+6. Gate: every requested take exists as a non-empty WAV with valid metadata.
+7. **Report quick facts, then STOP and ask about judging.** Present a compact
+   table per take: audio duration, generation wall time (elapsed_s), RTF,
+   MP3 size (and the player link when the artifact server runs). Then ask:
+   *"Run auto-judgement (metrics + CLAP ranking) on these takes?"* — invoke
+   `judge-quality` only after an explicit yes. If declined, close with the
+   player/download links and offer another generation round instead.
+
+## Learnings protocol
+
+When the user corrects a mistake, or a take/session goes wrong in a way the
+skill did not anticipate: append a dated entry to `studio/LEARNINGS.md`
+(Symptom / Cause / Rule) in the same turn — do not defer it. Rules there
+override habit on every future session.
 
 ## Dispatch hygiene & lost-job recovery
 
@@ -87,5 +99,7 @@ Never delete failed takes — rename with `_failed` suffix so evidence persists.
 
 ## Handoff
 
-On completion, invoke `judge-quality` on the session folder, then present the
-ranked results table to the user.
+After the user confirms auto-judgement, invoke `judge-quality` on the session
+folder and present the ranked results table. If they declined judging, close
+with the player/download links and offer: another generation round (new
+seeds/count), caption edits via compose-brief, or done.

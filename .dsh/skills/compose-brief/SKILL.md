@@ -30,6 +30,9 @@ origin: >
 
 ## Step 0 — Detect intent
 
+0. **Learnings check.** Skim `studio/LEARNINGS.md` first; apply its rules
+   throughout the interview and artifact writing.
+
 1. Song category: **vocal** or **instrumental** (cover → explain unsupported locally).
 2. Mode: **Basic** (clear one-liner → infer everything, confirm once) or
    **Advanced** (user wants control over lyrics/prompt/structure).
