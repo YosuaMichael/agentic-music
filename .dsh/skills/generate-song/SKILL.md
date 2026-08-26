@@ -26,10 +26,9 @@ description: >
 1. **Learnings check.** Skim `studio/learnings/LEARNINGS.md` (small, append-only,
    gitignored — if missing, treat as empty) before dispatching anything; its
    rules override habit.
-2. **Ask the user how many takes** (offer the configured default from
-   `[generation].num_takes`, usually 3; one take is fine for caption
-   iteration). Seeds cycle from `[generation].seeds`. Only proceed with the
-   number the user confirmed — never assume.
+2. **Dispatch 1 take by default** (next seed from `[generation].seeds`; if the
+   user explicitly requested N before starting, honor it). One take keeps
+   iteration fast/cheap — batch more only after hearing the first result.
 3. **Dispatch takes SEQUENTIALLY** — measured faster than concurrent dispatch
    on single-GPU hosts (see plans/2026-08-23-performance-research.md).
 4. For each take, run as a **background job**:
@@ -50,12 +49,17 @@ description: >
    (`take-NN.caption.md`, …) — provenance survives later revisions, so never
    edit or delete those per-take copies.
 6. Gate: every requested take exists as a non-empty WAV with valid metadata.
-7. **Report quick facts, then STOP and ask about judging.** Present a compact
-   table per take: audio duration, generation wall time (elapsed_s), RTF,
-   MP3 size (and the player link when the artifact server runs). Then ask:
-   *"Run auto-judgement (metrics + CLAP ranking) on these takes?"* — invoke
-   `judge-quality` only after an explicit yes. If declined, close with the
-   player/download links and offer another generation round instead.
+7. **Report quick facts, then offer next actions.** Present a compact table
+   per take: audio duration, generation wall time (elapsed_s), RTF, MP3 size
+   (and the player link when the artifact server runs). Then ask the user to
+   choose one:
+   - **Generate 3 more takes**
+   - **Generate 1 more take**
+   - **Run auto-judgement** (metrics + CLAP ranking)
+   - **Done / edit caption & lyrics**
+
+   Loop back to step 2 for generation choices (seeds continue cycling);
+   invoke `judge-quality` only after an explicit yes to that option.
 
 ## Learnings protocol
 
@@ -104,7 +108,8 @@ Never delete failed takes — rename with `_failed` suffix so evidence persists.
 
 ## Handoff
 
-After the user confirms auto-judgement, invoke `judge-quality` on the session
-folder and present the ranked results table. If they declined judging, close
-with the player/download links and offer: another generation round (new
-seeds/count), caption edits via compose-brief, or done.
+Generation is iterative: after each batch, the user may request more takes
+(1 or 3), run `judge-quality` (only on explicit confirmation), edit caption &
+lyrics via `compose-brief`, or declare done. When judging is chosen, invoke
+`judge-quality` on the session folder and present the ranked results table;
+otherwise close the batch with player/download links and await the next choice.

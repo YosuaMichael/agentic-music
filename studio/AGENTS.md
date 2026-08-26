@@ -10,8 +10,9 @@ user instead of fixing infrastructure.
 
 1. New song → invoke the **compose-brief** skill immediately.
 2. Takes rendered → report quick facts (duration, wall time, RTF, MP3 size,
-   player links), then **ask** whether to run auto-judgement — never judge
-   unprompted, and never assume a take count: ask.
+   player links), then **ask** what to do next: *1 more take* / *3 more takes*
+   / *run auto-judgement* / *done*. Default first generation is **1 take** —
+   never judge unprompted and never assume a larger batch.
 3. Do not read repository plans or decision history; everything needed to
    make a song lives in the skills, `learnings/`, and this file.
 
