@@ -86,8 +86,20 @@ def build_index(root: Path) -> dict:
     return {"schema": "artifacts-index/v1", "sessions": sessions}
 
 
+def _read_text_capped(path: Path, limit: int = 20000) -> str | None:
+    try:
+        if not path.is_file():
+            return None
+        text = path.read_text(encoding="utf-8")
+        if len(text) > limit:
+            text = text[:limit] + "\n\n… truncated"
+        return text
+    except Exception:
+        return None
+
+
 def render_play_page(root: Path, rel: str) -> str | None:
-    """Per-take landing page: player, download button, siblings, metadata."""
+    """Per-take landing page: player, download, lyrics/caption, siblings, metadata."""
     target = (root / rel).resolve()
     try:
         target.relative_to(root.resolve())
@@ -98,8 +110,9 @@ def render_play_page(root: Path, rel: str) -> str | None:
 
     file_url = "/files/" + rel.replace("\\", "/")
     takes_dir = target.parent
-    meta_path = target.with_suffix(".metadata.json") if target.suffix == ".wav" else \
-        target.with_name(target.stem + ".metadata.json")
+    session_dir = takes_dir.parent
+    stem = target.stem  # take-NN (works for both .wav and .mp3)
+    meta_path = takes_dir / f"{stem}.metadata.json"
     facts: list[str] = [f"file&nbsp;<code>{html.escape(target.name)}</code>",
                         f"{target.stat().st_size // 1024} KiB"]
     seed = provider = None
@@ -117,6 +130,12 @@ def render_play_page(root: Path, rel: str) -> str | None:
     facts.insert(1, f"seed&nbsp;<code>{seed if seed is not None else '?'}</code>")
     facts.insert(2, f"provider&nbsp;<code>{html.escape(str(provider or 'local'))}</code>")
 
+    # Prefer per-take frozen snapshots, fall back to session-level files.
+    lyrics_text = _read_text_capped(takes_dir / f"{stem}.lyrics.txt") \
+        or _read_text_capped(session_dir / "lyrics.txt")
+    caption_text = _read_text_capped(takes_dir / f"{stem}.caption.md") \
+        or _read_text_capped(session_dir / "caption.md")
+
     siblings = []
     for f in sorted(takes_dir.glob("*")):
         if f.suffix.lower() in (".wav", ".mp3") and f != target:
@@ -124,6 +143,21 @@ def render_play_page(root: Path, rel: str) -> str | None:
             siblings.append(
                 f"<a class='chip' href='/play/{rel_sib}'>{html.escape(f.name)}</a>"
             )
+
+    def _block(title: str, text: str | None, lang: str = "") -> str:
+        if not text or not text.strip():
+            return ""
+        # Keep markdown source readable — pre-wrap preserves line breaks without
+        # needing a markdown renderer. Long files are already capped.
+        return (
+            f"<section style='margin-top:1.5rem'><h2 style='font-size:1.05rem'>{html.escape(title)}</h2>"
+            f"<pre style='white-space:pre-wrap;word-break:break-word;background:#232a31;"
+            f"padding:1rem;border-radius:8px;overflow:auto;margin:0.5rem 0 0'>"
+            f"{html.escape(text)}</pre></section>"
+        )
+
+    lyrics_block = _block("Lyrics", lyrics_text)
+    caption_block = _block("Caption", caption_text)
 
     return (
         "<!doctype html><meta charset='utf-8'>"
@@ -144,7 +178,8 @@ def render_play_page(root: Path, rel: str) -> str | None:
         f"<p class='facts'>{''.join(f'<span>{x}</span>' for x in facts)}</p>"
         f"<a class='btn' href='{file_url}' download>⬇ Download {target.suffix[1:].upper()}</a>"
         "</div>"
-        + (f"<div class='chips'>{''.join(siblings)}</div>" if siblings else "")
+        + lyrics_block + caption_block
+        + (f"<div class='chips'><h3 style='font-size:0.95rem;color:#9aa0a6'>Other takes</h3>{''.join(siblings)}</div>" if siblings else "")
     )
 
 
