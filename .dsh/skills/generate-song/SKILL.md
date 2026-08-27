@@ -12,10 +12,12 @@ description: >
 
 ## Preconditions (verify, don't assume)
 
-1. All four artifacts exist NON-EMPTY on disk — verify by listing the session
-   folder itself, never by trusting earlier write results (a merged/dropped
-   tool invocation can silently lose a file): `brief.md`, `lyrics.txt`,
-   `caption.md`, `caption.json`.
+1. All artifacts exist on disk — verify by listing the session folder itself,
+   never by trusting earlier write results (a merged/dropped tool invocation
+   can silently lose a file):
+   - `brief.md`, `caption.md`, `caption.json` must be non-empty;
+   - `lyrics.txt` must exist, and be **completely empty (0 bytes) for
+     instrumentals**, non-empty for vocal songs.
 2. Read `[provider].type` from `configs/provider.toml`:
    - `"audiocpp"` (default): `.tools/audiocpp/audiocpp_cli.exe` exists
      (run `python scripts/setup_audiocpp.py` if not). No server needed.

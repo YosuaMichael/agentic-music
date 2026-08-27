@@ -24,7 +24,7 @@ origin: >
 | Artifact | Content |
 |---|---|
 | `brief.md` | Full interview result: genre/subgenre, mood arc, BPM/key hints, vocal character, instrument list, production feel, references, exclusions |
-| `lyrics.txt` | Final lyrics with Music 3 section tags: `[Intro]` `[Verse]` `[Pre-Chorus]` `[Chorus]` `[Post-Chorus]` `[Bridge]` `[Instrumental]` `[Solo]` `[Outro]`. Empty file + one-line note for instrumentals |
+| `lyrics.txt` | Final lyrics with Music 3 section tags: `[Intro]` `[Verse]` `[Pre-Chorus]` `[Chorus]` `[Post-Chorus]` `[Bridge]` `[Instrumental]` `[Solo]` `[Outro]`. **Completely empty (0 bytes) for instrumentals — no tags, no placeholder text** |
 | `caption.md` (+ `.json` on request) | Structured Caption produced via `$music-caption-rewriter`: Global Metadata / Vocal Details / Arrangement |
 | `caption.json` | Machine-readable twin of the caption for programmatic consumers. Schema: `{"source_skill": "music-caption-rewriter", "inputs": {"description": "<one-paragraph brief summary>", "lyrics_sections": ["[Verse]", "..."]}, "rewritten_caption": "<exact full text of caption.md>"}` |
 
@@ -61,6 +61,12 @@ Never reproduce copyrighted lyrics. Original lyrics only.
 
 Iterative editing contract: "change the second chorus" rewrites only that
 section. Show lyrics formatted with their section markers before moving on.
+
+**Instrumental rule:** if category is *instrumental*, `lyrics.txt` must remain
+**completely empty (0 bytes)** — do not write any section tags (`[Intro]`,
+`[Verse]`, etc.), placeholder text, or explanatory notes. Leave the file empty
+and rely on the caption's `pure instrumental, no vocals` style prompt to drive
+the arrangement.
 
 ## Step 3 — Structured Caption
 
@@ -104,10 +110,11 @@ Show the user: category, mode, one-paragraph creative summary, lyrics excerpt,
 caption highlights. Generate nothing until the user confirms or requests
 edits. Loop edits through Steps 1–3 as needed.
 
-Before the gate, list the session folder and confirm all four artifacts
-(`brief.md`, `lyrics.txt`, `caption.md`, `caption.json`) exist non-empty on
-disk. A merged or dropped tool invocation can silently lose a write — verify
-on disk instead of trusting earlier tool results.
+Before the gate, list the session folder and confirm artifacts on disk.
+A merged or dropped tool invocation can silently lose a write — verify on disk
+instead of trusting earlier tool results:
+- **Vocal:** `brief.md`, `lyrics.txt`, `caption.md`, `caption.json` all exist **non-empty**.
+- **Instrumental:** `brief.md`, `caption.md`, `caption.json` non-empty; `lyrics.txt` must exist and be **completely empty (0 bytes)**.
 
 ## Handoff
 
