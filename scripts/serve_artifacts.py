@@ -66,24 +66,56 @@ def build_index(root: Path) -> dict:
                             "url": f"/files/{session_dir.name}/takes/{f.name}",
                             "page": f"/play/{session_dir.name}/takes/{f.name}",
                         }
+                        # YuE2 keeps its symbolic score bundle next to the audio.
+                        score = find_score(takes_dir, f.stem)
+                        if score is not None:
+                            entry["score"] = (
+                                f"/files/{session_dir.name}/takes/"
+                                f"{f.stem}.yue2/{score.relative_to(takes_dir / f'{f.stem}.yue2').as_posix()}"
+                            )
                         meta = f.with_name(f.stem + ".metadata.json")
                         if meta.is_file():
                             try:
                                 m = json.loads(meta.read_text(encoding="utf-8"))
                                 entry["seed"] = m.get("seed")
                                 entry["provider"] = m.get("provider", "local")
+                                # Which music model produced this take (see
+                                # plans/2026-09-13-yue2-default-model.md).
+                                if m.get("model"):
+                                    entry["model"] = m.get("model")
                             except Exception:  # noqa: BLE001 - metadata is advisory
                                 pass
                         takes.append(entry)
             caption = session_dir / "caption.md"
+            style = session_dir / "style.txt"
             sessions.append(
                 {
                     "session": session_dir.name,
                     "has_caption": caption.is_file(),
+                    "has_style": style.is_file(),
+                    "has_model_choice": (session_dir / "model.json").is_file(),
                     "takes": takes,
                 }
             )
     return {"schema": "artifacts-index/v1", "sessions": sessions}
+
+
+def find_score(takes_dir: Path, stem: str) -> Path | None:
+    """Locate YuE2's symbolic score for a take, if that take has one.
+
+    YuE2 nests its native bundle one level deeper than the audio:
+    takes/take-NN.yue2/<request-id>/score.abc. Takes from other models simply
+    have no such directory, so this returns None and callers stay model-agnostic.
+    """
+    native_root = takes_dir / f"{stem}.yue2"
+    if not native_root.is_dir():
+        return None
+    candidates = [native_root / stem / "score.abc", native_root / "score.abc"]
+    candidates += sorted(native_root.glob("*/score.abc"))
+    for candidate in candidates:
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate
+    return None
 
 
 def _read_text_capped(path: Path, limit: int = 20000) -> str | None:
@@ -133,8 +165,20 @@ def render_play_page(root: Path, rel: str) -> str | None:
     # Prefer per-take frozen snapshots, fall back to session-level files.
     lyrics_text = _read_text_capped(takes_dir / f"{stem}.lyrics.txt") \
         or _read_text_capped(session_dir / "lyrics.txt")
+    style_text = _read_text_capped(takes_dir / f"{stem}.style.txt") \
+        or _read_text_capped(session_dir / "style.txt")
     caption_text = _read_text_capped(takes_dir / f"{stem}.caption.md") \
         or _read_text_capped(session_dir / "caption.md")
+
+    # Lead with the prompt this take was actually rendered from — YuE2 reads the
+    # short style prompt, MiniMax Music 3 reads the Structured Caption — and show
+    # the other one too, clearly labelled, since both are authored per song.
+    if str(provider) == "yue2":
+        prompt_title, prompt_text = "Style prompt (used by this take)", style_text
+        other_title, other_text = "Structured Caption (Music 3 prompt, unused here)", caption_text
+    else:
+        prompt_title, prompt_text = "Caption (used by this take)", caption_text
+        other_title, other_text = "Style prompt (YuE2 prompt, unused here)", style_text
 
     siblings = []
     for f in sorted(takes_dir.glob("*")):
@@ -143,6 +187,14 @@ def render_play_page(root: Path, rel: str) -> str | None:
             siblings.append(
                 f"<a class='chip' href='/play/{rel_sib}'>{html.escape(f.name)}</a>"
             )
+
+    # YuE2 composes a symbolic score before it renders audio; surface it, because
+    # inspecting/editing that plan is the model's headline capability.
+    score_path = find_score(takes_dir, stem)
+    score_url = ""
+    if score_path is not None:
+        score_url = "/files/" + score_path.relative_to(root.resolve()).as_posix()
+    score_text = _read_text_capped(score_path, limit=6000) if score_path else None
 
     def _block(title: str, text: str | None, lang: str = "") -> str:
         if not text or not text.strip():
@@ -157,7 +209,15 @@ def render_play_page(root: Path, rel: str) -> str | None:
         )
 
     lyrics_block = _block("Lyrics", lyrics_text)
-    caption_block = _block("Caption", caption_text)
+    prompt_block = _block(prompt_title, prompt_text)
+    other_block = _block(other_title, other_text)
+    score_block = ""
+    if score_text:
+        score_block = _block("Editable score (ABC) — the composition YuE2 planned", score_text)
+        if score_url:
+            score_block += (
+                f"<p><a class='btn' href='{score_url}' download>⬇ Download score.abc</a></p>"
+            )
 
     return (
         "<!doctype html><meta charset='utf-8'>"
@@ -178,7 +238,7 @@ def render_play_page(root: Path, rel: str) -> str | None:
         f"<p class='facts'>{''.join(f'<span>{x}</span>' for x in facts)}</p>"
         f"<a class='btn' href='{file_url}' download>⬇ Download {target.suffix[1:].upper()}</a>"
         "</div>"
-        + lyrics_block + caption_block
+        + lyrics_block + prompt_block + other_block + score_block
         + (f"<div class='chips'><h3 style='font-size:0.95rem;color:#9aa0a6'>Other takes</h3>{''.join(siblings)}</div>" if siblings else "")
     )
 
@@ -191,9 +251,11 @@ def render_html(index: dict) -> str:
             continue
         items = []
         for t in s["takes"]:
+            # `model` is the music model; `provider` is the engine that ran it.
+            origin = t.get("model") or t.get("provider")
             items.append(
                 f"<li><a href='{e(t['page'])}'><code>{e(t['file'])}</code></a> "
-                f"({t['bytes'] // 1024} KiB, seed {t.get('seed', '?')}, {e(str(t.get('provider')))}) "
+                f"({t['bytes'] // 1024} KiB, seed {t.get('seed', '?')}, {e(str(origin))}) "
                 f"<a href='{e(t['url'])}'>direct</a> · "
                 f"<audio controls preload='none' src='{e(t['url'])}'></audio></li>"
             )
