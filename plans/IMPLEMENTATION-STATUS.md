@@ -37,7 +37,16 @@ Last updated: 2026-08-23
 | Decode CUDA graphs re-enabled | ✅ | −12.5% wall time, byte-identical output; capture verified — [plans/2026-08-23-performance-research.md](2026-08-23-performance-research.md) |
 | Concurrent take dispatch | ❌ tested, rejected | Slower on single GPU (115 s vs ≈87 s for 3 takes); keep sequential |
 | `cache_dit` acceleration option | 🚫 rejected | Upstream: trades audio quality for speed |
-| audio.cpp GGUF alternative provider (Q8) | ✅ **adopted as default** | Owner-approved A/B: ~4× faster full songs, −29% peak VRAM — [plans/2026-08-23-audiocpp-gguf-provider.md](2026-08-23-audiocpp-gguf-provider.md) |
+| audio.cpp GGUF alternative provider (Q8) | ✅ **default for MiniMax Music 3** | Owner-approved A/B: ~4× faster full songs, −29% peak VRAM — [plans/2026-08-23-audiocpp-gguf-provider.md](2026-08-23-audiocpp-gguf-provider.md) |
+| YuE2 as a second music model, `yue2` default | ✅ verified end to end | `setup_yue2.py` → `ok/ready_for_generation: true`, v0.1.6, weights present, CUDA visible, `doctor` green; 3 real takes in `studio/sessions/20260913-233400-yue2-first-song/`; `select_model.py` / `generate_yue2.py` / `generate_take.py` + registry in [configs/provider.toml](../configs/provider.toml) — [plans/2026-09-13-yue2-default-model.md](2026-09-13-yue2-default-model.md) §5 |
+| YuE2 measured speed (RTX 4090) | ✅ | 107.8 s song in **45.5 s** model time (RTF 0.42), **54.7 s** end to end, ~9.3 GiB peak; per-stage table in §5.1. `cot=off`: 35.8 s / RTF 0.35. Same seed ⇒ byte-identical WAV/FLAC/MP3 |
+| YuE2 offline-by-default (`[yue2].offline = true`) | ✅ | Online revalidation cost ~250 s (5.5× the take): 299.5 s online vs 54.7 s offline for the same seed — plan decision Y10 |
+| Per-model capability reference (no standardisation) | ✅ | [`model-guide`](../.dsh/skills/model-guide/SKILL.md) skill: per-model request fields, CLI flags, defaults, capabilities, limits, measured performance; `--extra-arg` passthrough on the dispatcher and all three generators — plan decision Y11 |
+| YuE2 `cot=melody`, ABC covers, `batch`, fp8, vLLM | ⬜ | Explicitly out of scope for now; `--abc-file` is blocked by the wrapper on purpose |
+
+| Session-scoped model choice, asked once | ✅ | `scripts/select_model.py` (`select_model/v1`): `needs_choice` gate, recorded choices never re-asked or silently overwritten; compose-brief Step 0b |
+| `style.txt` prompt artifact for YuE2 | ✅ | compose-brief Outputs + Step 3a; consumed by `generate_yue2.py` (falls back to `caption.json.inputs.description`, flagged as degraded) |
+| YuE2 weight-licence guardrail (CC BY-NC 4.0) | ✅ | `[models.yue2].commercial_use = false` surfaced in the ask-once prompt; README + NOTICE; plan decision Y6 |
 | Release v0.0.1 | ✅ tagged 2026-08-23 | First release: local single-GPU pipeline + dual provider support |
 | Harness web integration Phase 1 (artifact sidecar + MP3) | ✅ | [scripts/serve_artifacts.py](../scripts/serve_artifacts.py) verified (Range/index/traversal); `transcode.py` companions — [plans/2026-08-23-harness-web-integration.md](2026-08-23-harness-web-integration.md) |
 | Loudness normalization pass before delivery | ⬜ | Takes peak at 0 dBFS (matches upstream reference behavior) |
@@ -51,7 +60,7 @@ Last updated: 2026-08-23
 | CONTRIBUTING / CODE_OF_CONDUCT / SECURITY / CHANGELOG / NOTICE | ✅ | repo root |
 | .gitignore excluding oss/, sessions/, models/, .venv/ | ✅ | [.gitignore](../.gitignore) |
 | GitHub issue + PR templates | ✅ | `.github/` |
-| Pinned upstream fetch + digest verification | ✅ | [scripts/fetch_upstream.sh](../scripts/fetch_upstream.sh), [docs/upstream.md](upstream.md) |
+| Pinned upstream fetch + digest verification | ✅ | [scripts/fetch_upstream.sh](../scripts/fetch_upstream.sh), [docs/upstream.md](upstream.md) — YuE2 added as a third pin; **docs/upstream.md regenerates on the next run** (it is generated output, never hand-edited) |
 | Upstream pin re-check for license change (addendum §9.2) | ⬜ | Re-run at next pin bump |
 | caption-rewriter offline fallback in compose-brief | ✅ | [skills/compose-brief/SKILL.md](../.dsh/skills/compose-brief/SKILL.md) Step 3 manual path |
 | Machine-readable `caption.json` artifact | ✅ | compose-brief Outputs contract |

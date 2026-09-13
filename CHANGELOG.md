@@ -9,6 +9,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **YuE2 as a second music model, and the new default** (plan:
+  [plans/2026-09-13-yue2-default-model.md](plans/2026-09-13-yue2-default-model.md)).
+  YuE2-3B scores highest among open models on WildSongBench (SongBench Avg 6.73 vs
+  MiniMax Music 3's 6.28 and Suno v5's 6.87), renders a ~3.6-minute song in ~71 s at
+  ~11 GB peak on a 4090, and emits an **editable melody + chord score** per take.
+  It is Linux-only upstream, so on Windows it runs in the same WSL2 distro the
+  SGLang reference path uses.
+  - `scripts/select_model.py` (`select_model/v1`) — the **ask-once** model choice:
+    resolves the registry, probes per-model availability/readiness, and reads/writes
+    `<session>/model.json`. `needs_choice` is the gate the skills ask on; once
+    recorded the question is never repeated, and an existing choice is never
+    silently overwritten.
+  - `scripts/setup_yue2.py` (`setup_yue2/v1`) — idempotent machine bring-up: venv
+    inside the runtime, install from the pinned upstream checkout (v0.1.6 wheel as an
+    explicit fallback), ~7.8 GB of weights, then a `yue2 doctor` + CUDA gate.
+  - `scripts/generate_yue2.py` (`generate/v1`) — one seeded take: writes the exact
+    upstream request JSON, runs `yue2 generate` in the runtime, and produces the
+    standard session artifacts plus `take-NN.flac`, `take-NN.request.json`, the frozen
+    `take-NN.style.txt` prompt, and the upstream native artifacts under
+    `take-NN.yue2/` (`score.abc`, `plan.json`, `result.json`, `latent.npy`).
+  - `scripts/generate_take.py` (`generate/v1`) — model→generator dispatch in one
+    place, used by the generate-song skill. Reports `model` and `model_source`
+    (`session` | `default` | `flag`) on every result.
+  - New session artifact **`style.txt`**: YuE2's short comma-separated style prompt,
+    distinct from Music 3's ~400-word Structured Caption. compose-brief now writes
+    both from the same interview; each model reads its own native prompt.
+  - New model registry in `configs/provider.toml` (`[models]` + `[yue2]`), keeping
+    the *model* axis separate from the *engine* axis.
+- **`model-guide` skill** — a per-model parameter and capability reference. The models
+  are deliberately **not** standardised: each section documents that model's own request
+  fields, CLI flags, defaults, capabilities, limits, and measured performance, so an
+  agent can drive whichever model natively. It also carries the ask-once decision table
+  (license, instrumentals, prompt artifact, length control).
+- **`--extra-arg` model-native passthrough** on the dispatcher and on every generator
+  (`--extra-arg "--quantization fp8"`, repeatable, shell-split). Model-specific flags
+  reach the model's own CLI without a code change, so flexibility does not depend on
+  normalising the models. Flags that carry the session file contract or would falsify a
+  take's provenance are rejected with the first-class alternative named; whatever is
+  passed is recorded in `take-NN.metadata.json` (`extra_args` / `extra_payload`).
+- **YuE2 verified end to end, with measured performance.** `setup_yue2.py` installed
+  v0.1.6 and ~7.8 GB of weights in WSL2; three real takes rendered in
+  `studio/sessions/20260913-233400-yue2-first-song/`: **107.8 s song in 45.5 s of model
+  time (RTF 0.42), 54.7 s end to end, ~9.3 GiB peak** on an RTX 4090. `cot=off` renders
+  in 35.8 s. The same seed reproduces byte-identical WAV/FLAC/MP3.
+- Per-take `generate.log` retained in `takes/take-NN.yue2/`: the model's own stage
+  timings and token throughput, for benchmarking and debugging.
+
+### Fixed
+
+- **YuE2 generation is now offline by default** (`[yue2].offline = true`). Online, an
+  identical take spent ~250 s revalidating already-present weights over ~46 Hugging Face
+  connections (299.5 s total vs 54.7 s offline). `setup_yue2.py` remains the step that
+  fetches weights.
+- `RunResult.ok` was missing on the YuE2 generator's runtime helper (added to all three
+  runtime helpers, with tests that exercise it against a real subprocess exit code).
+
+### Changed
+
+- **The default music model is now `yue2`** (`[models].default`). MiniMax Music 3
+  remains fully supported by selecting `minimax-music3` — its owner-approved
+  audio.cpp Q8 default is unchanged.
+- generate-song dispatches through `scripts/generate_take.py` instead of picking a
+  backend script, and reads the session's model instead of `[provider].type`.
+- compose-brief begins by asking which model to use **once per song**, with the
+  license (YuE2 weights are CC BY-NC 4.0, non-commercial) and the instrumental
+  limitation stated in the question.
+- judge-quality scores each take against the prompt that actually produced it —
+  `take-NN.style.txt` for YuE2 takes, `take-NN.caption.md` for Music 3 takes — and
+  records `model` + `prompt_scored` in `review.json`.
+- studio/AGENTS.md and the env-setup, compose-brief, generate-song and judge-quality
+  skills updated for two models.
+- `scripts/fetch_upstream.sh` pins the YuE2 repository as a third upstream
+  (`oss/yue2`), which is also the install source for the YuE2 runtime.
+- Artifact player pages now lead with the prompt the take was **actually rendered
+  from** — `style.txt` for YuE2 takes, `caption.md` for Music 3 takes — and label the
+  other one as unused, instead of always showing the caption. The JSON inventory
+  (`artifacts-index/v1`) additionally reports each take's `model` and the session's
+  `has_style`/`has_model_choice`.
+
+### Fixed
+
+- Pipeline test loader now registers modules in `sys.modules`, so scripts defining
+  dataclasses (YuE2 runtime plumbing) import cleanly under test.
+
+### Security
+
+- YuE2 weight licensing is surfaced wherever a choice is made or documented
+  (registry metadata, ask-once prompt, README, NOTICE): **CC BY-NC 4.0,
+  non-commercial only**. No upstream content is vendored; our wrappers are original.
+
+### Added (studio learnings & provenance)
+
+- Provenance for YuE2 takes includes the machine-readable request and the symbolic
+  score, and a failed attempt's native directory is retired as `*_failed` rather than
+  deleted, so retries keep their evidence.
 - **Per-take provenance snapshots**: every generation now freezes the exact
   `caption.md` / `lyrics.txt` / `caption.json` that produced it into
   `takes/take-NN.caption.md`, `.lyrics.txt`, `.caption.json` — lyric and
@@ -26,12 +121,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (duration, wall time, RTF, MP3 size, player links) after rendering, and
   runs auto-judgement only when the user explicitly opts in.
 
-### Changed
+### Changed (workspace split)
 
 - Repository split into two agent workspaces: `studio/` (lean creator manual,
   songs under `studio/sessions/`) and repo root (development). Skills moved
-  to `.dsh/skills/` — DSH's native discovery root, so all four skills are
-  auto-cataloged in every project session.
+  to `.dsh/skills/` — DSH's native discovery root, so every skill is
+  auto-cataloged in each project session.
 - Artifact server (`serve_artifacts.py`) defaults to serving
   `studio/sessions/`.
 

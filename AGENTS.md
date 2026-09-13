@@ -2,8 +2,8 @@
 
 You are an autonomous coding agent working in **agentic-music**: a repository whose purpose
 is to let agents like you set up, run, and iterate on **fully local music generation** with
-the open-weights **MiniMax Music 3** model, end to end, following written instructions —
-not improvisation.
+open-weights models — **YuE2** (the default model) and **MiniMax Music 3** — end to end,
+following written instructions — not improvisation.
 
 ## Two Workspaces
 
@@ -47,66 +47,103 @@ plan document and register it in the index — never silently contradict them.
 2. Never copy content out of `oss/minimax-music3/` into committed files (no license found
    upstream → all rights reserved). Reference paths, fetch at runtime via
    `scripts/fetch_upstream.sh`. Adapted text from MIT-licensed sources carries a header
-   comment naming origin + license.
+   comment naming origin + license. (`oss/yue2` is Apache-2.0, so copying would be
+   permitted with attribution — we still don't: we invoke upstream's CLI instead of
+   vendoring it.)
 3. No API keys, tokens, telemetry, or machine-specific absolute paths in committed files.
-4. This project is independent; never imply MiniMax affiliation in user-facing text.
+   For the YuE2 runtime use `~`/repo-relative paths in `[yue2]` (`~` is expanded inside
+   the runtime).
+4. This project is independent; never imply MiniMax or YuE2-authors affiliation in
+   user-facing text.
+5. **YuE2 model weights are CC BY-NC 4.0 — non-commercial only.** Since `yue2` is the
+   default model, the default pipeline path inherits that restriction. Never describe
+   YuE2 output as commercially usable; the MiniMax Music 3 engine is the alternative when
+   commercial use matters.
 
 ## Repository Map
 
 ```
 AGENTS.md            ← you are here (developer manual)
 plans/               dated, indexed plan documents (decision history)
-.dsh/skills/         the four skills — DSH-native discovery root (compose-brief ·
-                     generate-song · judge-quality · env-setup)
+.dsh/skills/         the five skills — DSH-native discovery root (compose-brief ·
+                     generate-song · judge-quality · env-setup · model-guide)
 scripts/             deterministic JSON-out CLIs (the only way infra happens)
-configs/provider.toml  endpoint + generation defaults
+configs/provider.toml  music-model registry + engine endpoint/defaults
 studio/              song-creation workspace: studio/AGENTS.md + studio/sessions/
-docs/upstream.md     pinned upstream revisions + digests
+docs/upstream.md     pinned upstream revisions + digests (generated)
 oss/                 git-excluded upstream checkouts created by fetch_upstream.sh
 ```
 
 ## The Pipeline
 
 ```
-compose-brief      interview user → brief.md + lyrics.txt → $music-caption-rewriter → caption.md
-generate-song      caption + lyrics → N seeded takes → takes/take-NN.wav (+ metadata.json)
+compose-brief      choose model once → interview user → brief.md + lyrics.txt
+                   → style.txt (YuE2) + $music-caption-rewriter → caption.md
+generate-song      model.json + prompt + lyrics → N seeded takes
+                   → takes/take-NN.wav (+ metadata.json), via scripts/generate_take.py
 judge-quality      metrics + CLAP alignment → review.json (ranked verdict)
-env-setup          once per machine: audit → provider setup (audiocpp default / SGLang path B) → healthcheck
+env-setup          once per machine: audit → model runtime setup → healthcheck
 ```
 
 Run `env-setup` first on a fresh machine. Then loop compose-brief → generate-song →
 judge-quality, presenting ranked results to the user between iterations.
 
+## Music models vs engines (two axes — do not conflate them)
+
+| Axis | Values | Set where | Changed by |
+|---|---|---|---|
+| **Model** (what generates music) | `yue2` (default), `minimax-music3` | `<session>/model.json`, default in `[models].default` | the user, asked once per song by compose-brief |
+| **Engine** (how MiniMax Music 3 runs) | `audiocpp` (default), `local` | `[provider].type` | the owner, repo-wide |
+
+Dispatch goes through `scripts/generate_take.py` — the backend generators
+(`generate_yue2.py`, `generate_audiocpp.py`, `generate.py`) are only invoked directly by
+the env-setup smoke tests, which deliberately bypass any session's model choice. `yue2`
+requires `style.txt` (short prompt), has **no instrumental mode**, and
+its weights are **CC BY-NC 4.0 (non-commercial)** — see
+[plans/2026-09-13-yue2-default-model.md](plans/2026-09-13-yue2-default-model.md).
+
 ## Session Protocol
 
 Song id format: `YYYYMMDD-HHMMSS-<slug>`. Artifacts are fixed names (see initial plan §7).
 Never rename artifacts mid-session; superseded takes stay in place with `_vN` suffixes.
-Root `lyrics.txt` / `caption.md` are the canonical *working* copies; each generation
-also freezes per-take provenance snapshots (`takes/take-NN.caption.md`,
-`take-NN.lyrics.txt`, `take-NN.caption.json`) — treat those as immutable history.
+Root `lyrics.txt` / `style.txt` / `caption.md` are the canonical *working* copies; each
+generation also freezes per-take provenance snapshots (`takes/take-NN.style.txt`,
+`take-NN.caption.md`, `take-NN.lyrics.txt`, `take-NN.caption.json`, and for YuE2 the
+`take-NN.request.json` + `take-NN.yue2/` score bundle) — treat those as immutable history.
+`model.json` is session state: never hand-edit it, and never re-ask once it exists.
 
 ## Platform Notes
 
-- **Default generation provider (since 2026-08-23): audio.cpp GGUF CLI**
-  (Windows-native, no WSL needed): `python scripts/generate_audiocpp.py`.
-  Machine setup for it: `python scripts/setup_audiocpp.py`.
-  See plans/2026-08-23-audiocpp-gguf-provider.md.
+- **Default music model (since 2026-09-13): YuE2** (`yue2`). Linux-only upstream,
+  so on Windows it runs in the `Ubuntu-24.04` WSL distro. Machine setup:
+  `python scripts/setup_yue2.py`; generation: `python scripts/generate_take.py`.
+  Its weights are CC BY-NC 4.0 → non-commercial only.
+- **MiniMax Music 3 engine default (since 2026-08-23): audio.cpp GGUF CLI**
+  (Windows-native, no WSL needed for generation). Machine setup:
+  `python scripts/setup_audiocpp.py`. Its engine is selected by
+  `[provider].type`; see plans/2026-08-23-audiocpp-gguf-provider.md.
 - The SGLang-Omni reference stack (path B) runs inside the `Ubuntu-24.04`
   WSL distro; invoke via:
   `wsl.exe -d Ubuntu-24.04 -u root -- bash -lc '<command>'`
   Start/stop it with `python scripts/serve.py run|status|stop` from Windows.
 - SGLang weights live inside the WSL filesystem (`~/models/minimax-music3`);
-  audio.cpp GGUFs live under `<repo>/models/audiocpp/` — both gitignored.
+  YuE2's venv and weights live there too (`~/yue2/venv`, `~/yue2/weights`);
+  audio.cpp GGUFs live under `<repo>/models/audiocpp/` — all gitignored.
+- `[yue2]` paths in config use `~` (expanded inside the runtime), so the committed
+  config stays machine-independent.
 
 ## Current Status
 
-**v0.0.1 released (tagged 2026-08-23).** Default generation provider is the
-audio.cpp GGUF CLI (owner-approved); SGLang-Omni remains as the "local"
-reference path. Phase 0 gate PASSED (GO-WITH-LIMITS): MiniMax Music 3 serves
-and generates on a single RTX 4090 via colocated two-process topology — see
+**v0.0.1 released (tagged 2026-08-23).** MiniMax Music 3 generation is validated
+end to end on a single RTX 4090 (audio.cpp GGUF default; SGLang-Omni remains the
+"local" reference path). Phase 0 gate PASSED (GO-WITH-LIMITS) — see
 [plans/2026-08-23-phase0-single-gpu-spike.md](plans/2026-08-23-phase0-single-gpu-spike.md)
 for measurements and the exact working config
-([configs/music3-pipeline.yaml](configs/music3-pipeline.yaml)). End-to-end
-pipeline validated: first song generated and judged in
-`studio/sessions/20260823-105740-first-light/`. Roadmap polish items remain
-(CI workflow).
+([configs/music3-pipeline.yaml](configs/music3-pipeline.yaml)). First song generated and
+judged in `studio/sessions/20260823-105740-first-light/`.
+
+**YuE2 added 2026-09-13 as the default model** (session-scoped ask-once choice). Runtime
+setup, dispatch and guards are implemented and behaviour-tested; an end-to-end take on a
+real GPU is still the open acceptance test — see
+[plans/2026-09-13-yue2-default-model.md](plans/2026-09-13-yue2-default-model.md) §5. Roadmap
+polish items remain (CI workflow).

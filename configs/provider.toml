@@ -1,5 +1,47 @@
-# Provider configuration — which backend generates music, and its defaults.
-# Parsed by scripts/generate.py and scripts/serve.py. Keep TOML simple.
+# Provider configuration — which music model to use, which engine runs it, and
+# that engine's defaults. Parsed by the scripts/ CLIs. Keep TOML simple.
+#
+# Two orthogonal axes (see plans/2026-09-13-yue2-default-model.md, decisions Y1-Y3):
+#   * MODEL  — which music model generates the song. Chosen once per song session
+#              (by the user, via scripts/select_model.py -> <session>/model.json);
+#              the value here is only the fallback when a session has no choice.
+#   * ENGINE — how MiniMax Music 3 runs ([provider].type). Irrelevant to yue2.
+
+# ---------------------------------------------------------------------------
+# Music-model registry. Keys must come before the [models.<id>] sub-tables.
+
+[models]
+# Fallback model when a session has no recorded choice. The studio asks the user
+# once per session and writes <session>/model.json; this default is what the ask
+# proposes and what a session with no recorded choice resolves to.
+default = "yue2"
+# Selectable models, in the order presented to the user.
+available = ["yue2", "minimax-music3"]
+
+[models.yue2]
+label = "YuE2-3B (symbolic planning, 48 kHz stereo)"
+engine = "yue2"
+# Weights are CC BY-NC 4.0 (NON-COMMERCIAL); first-party code is Apache-2.0.
+# Surfaced in the ask-once prompt and in README/NOTICE — never claim commercial
+# rights over YuE2 output without separate terms (plan decision Y6).
+weights_license = "CC BY-NC 4.0 (non-commercial)"
+commercial_use = false
+# Upstream requires `lyrics` and has no instrumental mode (plan decision Y9).
+supports_instrumental = false
+# The prompt artifact this model consumes (plan decision Y5).
+prompt_artifact = "style.txt"
+
+[models.minimax-music3]
+label = "MiniMax Music 3 (Structured Caption)"
+# Engine comes from [provider].type below ("audiocpp" | "local").
+engine = "minimax"
+weights_license = "MiniMax-Music3 Community License"
+commercial_use = true
+supports_instrumental = true
+prompt_artifact = "caption.md"
+
+# ---------------------------------------------------------------------------
+# Engine for MiniMax Music 3.
 
 [provider]
 # "audiocpp" = audio.cpp GGUF CLI — DEFAULT since 2026-08-23 (owner-approved
@@ -86,3 +128,76 @@ hf_files = [
 # package file names to exist before honoring overrides, so the all-Q8 mix is
 # provided by the hardlink directory selected via model_dir above.
 # To A/B other mixes, add e.g.:  language_model_gguf = "language_model_q4_0.gguf"
+
+# ---------------------------------------------------------------------------
+# Music model "yue2": YuE2-3B (multimodal-art-projection/YuE, main branch).
+# First-party code Apache-2.0; WEIGHTS ARE CC BY-NC 4.0 (non-commercial only).
+# See plans/2026-09-13-yue2-default-model.md. Machine bring-up:
+# scripts/setup_yue2.py; generation: scripts/generate_yue2.py (or the
+# scripts/generate_take.py dispatcher, which respects <session>/model.json).
+
+[yue2]
+# Upstream defaults are the supported configuration for a 24 GB BF16 GPU.
+# Leave model/vae EMPTY to use them (YuE2-3B + the "standard" listening VAE).
+# Set to a local directory (visible inside the runtime) to run offline.
+model = ""
+# Upstream's --vae vocabulary is: "" (standard) | "legacy" | <hf repo> | <local dir>.
+# Never set this to "m-a-p/YuE2-Vae" expecting a name: "standard" *is* YuE2-Vae.
+vae = ""
+# "full" = melody + chord plan (upstream default) | "melody" (covers) | "off".
+cot = "full"
+# 0.0 = use upstream defaults (1.0 for full/melody, 1.01 for off, range 0-20).
+cfg_scale = 0.0
+# true = pass --offline: never touch the network at generation time.
+# DEFAULT IS TRUE, and measurably so: setup_yue2.py pre-fetches every file, so
+# online generation only revalidates them. Measured on this machine (2026-09-13),
+# an online run spent ~250 s in "Resolving model files" over ~46 HF connections
+# versus 45.9 s of actual generation -- startup was 5x the model work. Set false
+# only when deliberately checking the hub (e.g. after a model revision bump).
+offline = true
+
+# --- Runtime placement -----------------------------------------------------
+# YuE2 is Linux-only upstream (no Windows instructions, pinned torch==2.10.0),
+# so a Windows host drives it through WSL2 - the same precedent as the
+# SGLang-Omni reference path. "native" runs the venv directly on a Linux host.
+runtime = "wsl"
+wsl_distro = "Ubuntu-24.04"
+wsl_user = "root"
+# Runtime-home paths: "~" is expanded INSIDE the runtime, so this committed
+# config stays machine-independent and the multi-GB weights stay off the /mnt/c
+# repo mount (9p is slow for the HF cache and venv).
+venv_dir = "~/yue2/venv"
+weights_dir = "~/yue2/weights"
+# Python used to create the venv inside the runtime (upstream: >=3.10, README/CI: 3.12).
+python = "python3.12"
+
+# --- Pinned upstream source (scripts/fetch_upstream.sh, docs/upstream.md) ---
+# Repo-relative path to the pinned checkout; also on the upstream pin list, so
+# the revision this runtime was installed from is recorded in docs/upstream.md.
+src_dir = "oss/yue2"
+upstream_git = "https://github.com/multimodal-art-projection/YuE.git"
+upstream_ref = "main"
+# "checkout" installs the pinned git checkout above: upstream's documented quick
+# start, and Apache-2.0 for first-party code. "wheel" installs release_wheel
+# instead - but that v0.1.6 archive bundles first-party code under CC BY-NC 4.0,
+# so it is a fallback, not the default (plan decisions Y4/Y6).
+install_source = "checkout"
+release_wheel = "https://github.com/multimodal-art-projection/YuE/releases/download/yue2-v0.1.6/yue2_infer-0.1.6-py3-none-any.whl"
+# Weights pre-fetched into weights_dir (HF_HOME) by setup_yue2.py; ~7.8 GB total.
+hf_models = ["m-a-p/YuE2-3B", "m-a-p/YuE2-Vae"]
+# Hardware gates for setup (upstream: 24 GB VRAM BF16, 24 GB host RAM, 1 request
+# at a time). Informational in hardware_audit.py; the VRAM gate is a hard stop.
+min_vram_gb = 24
+min_host_ram_gb = 24
+
+# --- Output -----------------------------------------------------------------
+# Upstream writes 48 kHz stereo FLAC (PCM_24); we add a WAV master for judging
+# plus the same MP3 companion the audiocpp provider produces.
+sample_rate = 48000
+mp3 = true
+mp3_quality = 2
+# Escape hatch for deliberate upstream flags (e.g. ["--offload-ar"],
+# ["--quantization", "fp8"], ["--config", "/abs/path.json"]). Never add a
+# competing --request/--output/--model/--vae/--cot/--seed here: generate_yue2.py
+# owns those, and duplicates would be ambiguous.
+extra_generate_args = []

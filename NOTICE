@@ -47,3 +47,36 @@ and references or adapts third-party material as described below.
    Downloaded by end users at setup time under the repository's stated license.
    Quantized component files are not included with, or redistributed by, this
    product.
+
+7. YuE2 (multimodal-art-projection/YuE) — default music model
+   https://github.com/multimodal-art-projection/YuE
+
+   Copyright (c) 2026 the YuE2 authors — Apache License 2.0
+
+   The upstream repository is cloned into a git-excluded local directory
+   (oss/yue2) by scripts/fetch_upstream.sh and installed from there at setup
+   time (scripts/setup_yue2.py). It is NOT redistributed with this product, and
+   no upstream source or documentation is copied into this repository: our
+   integration only invokes upstream's own `yue2` command-line interface. The
+   upstream v0.1.6 release archive carries a different bundled notice for
+   first-party code; installing from the source checkout (the default) is
+   Apache-2.0.
+
+8. YuE2-3B / YuE2-Vae model weights — NON-COMMERCIAL ONLY
+   https://huggingface.co/m-a-p/YuE2-3B
+   https://huggingface.co/m-a-p/YuE2-Vae
+
+   Licensed under Creative Commons Attribution-NonCommercial 4.0 International
+   (CC BY-NC 4.0). Downloaded by end users at setup time and not included with,
+   or redistributed by, this product.
+
+   IMPORTANT: this is a non-commercial license. YuE2 weights — and therefore
+   audio generated with them, including this product's default model path — may
+   only be used for NonCommercial purposes. Commercial use requires separate
+   terms from the model authors. The MiniMax Music 3 model is the alternative
+   when commercial use matters.
+
+   YuE2 bundles third-party components under their own (MIT) licenses —
+   stable-audio-tools/Oobleck VAE (Copyright (c) 2023 Stability AI) and
+   SnakeBeta/BigVGAN (Copyright (c) 2022 NVIDIA CORPORATION) — recorded upstream
+   in THIRD_PARTY_NOTICES.md and licenses/.

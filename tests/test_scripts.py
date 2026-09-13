@@ -13,6 +13,11 @@ EXPECTED_SCHEMAS = {
     "hardware_audit.py": "hardware_audit/v1",
     "serve.py": "serve/v1",
     "generate.py": "generate/v1",
+    "generate_audiocpp.py": "generate/v1",
+    "generate_yue2.py": "generate/v1",
+    "generate_take.py": "generate/v1",
+    "select_model.py": "select_model/v1",
+    "setup_yue2.py": "setup_yue2/v1",
     "analyze_audio.py": "analyze_audio/v1",
     "clap_score.py": "clap_score/v1",
 }
@@ -21,6 +26,9 @@ EXPECTED_SCHEMAS = {
 def _load(name: str):
     spec = importlib.util.spec_from_file_location(name[:-3], SCRIPTS / name)
     module = importlib.util.module_from_spec(spec)
+    # Register before exec: dataclasses (and anything else resolving string
+    # annotations) looks the defining module up in sys.modules.
+    sys.modules[name[:-3]] = module
     spec.loader.exec_module(module)
     return module
 

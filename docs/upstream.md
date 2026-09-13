@@ -6,15 +6,21 @@ locally and git-excluded; this file records what state our work was verified aga
 
 | Repo | URL | Pinned commit | Pinned date | Digests verified |
 |------|-----|---------------|-------------|------------------|
-| minimax-music3 | https://github.com/MiniMax-AI/MiniMax-Music3.git | 945655064d59b98004dd70002e7eb5c8c6e11373 | 2026-08-23 | 3 file(s) |
-| skills | https://github.com/MiniMax-AI/skills.git | 60aaae52bb2af8162732751a4332f62a5fef518b | 2026-08-23 | 3 file(s) |
+| minimax-music3 | https://github.com/MiniMax-AI/MiniMax-Music3.git | 945655064d59b98004dd70002e7eb5c8c6e11373 | 2026-09-13 | 3 file(s) |
+| skills | https://github.com/MiniMax-AI/skills.git | 60aaae52bb2af8162732751a4332f62a5fef518b | 2026-09-13 | 3 file(s) |
+| yue2 | https://github.com/multimodal-art-projection/YuE.git | 88da114a67df892af0329472073b96a5ef700b93 | 2026-09-13 | 6 file(s) |
 
 ## Why these pins
 
 - `minimax-music3`: model card, serving instructions (SGLang-Omni), and the official
-  `music-caption-rewriter` skill documentation referenced by `.dsh/skills/compose-brief`.
+  `music-caption-rewriter` skill documentation referenced by .dsh/skills/compose-brief.
 - `skills`: MIT-licensed MiniMax agent-skills collection; `minimax-music-gen` interaction
-  protocol adapted into `.dsh/skills/compose-brief` (attribution in NOTICE).
+  protocol adapted into .dsh/skills/compose-brief (attribution in NOTICE).
+- `yue2`: the YuE2 repository (multimodal-art-projection/YuE, main branch). Used as the
+  install source for the optional `yue2` music model (`scripts/setup_yue2.py` installs
+  from this pinned checkout) and read by .dsh/skills for prompt-shape guidance. First-party
+  code is Apache-2.0; the model weights are CC BY-NC 4.0 (non-commercial) and are never
+  redistributed here - see NOTICE and plans/2026-09-13-yue2-default-model.md.
 
 Digest verification covers exactly the files agentic-music reads; full checkouts are not
 redistributed. See AGENTS.md hard rules before touching `oss/`.

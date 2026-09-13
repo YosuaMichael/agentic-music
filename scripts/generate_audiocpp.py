@@ -3,7 +3,8 @@
 
 Usage:
     python scripts/generate_audiocpp.py --session studio/sessions/<song-id> --seed 7 \
-        [--duration-sec 360] [--take-id N] [--config configs/provider.toml]
+        [--duration-sec 360] [--take-id N] [--extra-arg "<audiocpp flag>"]... \
+        [--config configs/provider.toml]
 
 Reads caption.md (--text) and lyrics.txt (--request-option lyrics=...) from the
 session dir, invokes audiocpp_cli.exe --task gen --family minimax_music3, and
@@ -27,12 +28,54 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 import time
 import tomllib
 from datetime import UTC, datetime
 from pathlib import Path
+
+# Flags this generator owns (file contract + the model identity recorded in
+# metadata). Everything else the audio.cpp CLI accepts is reachable through
+# --extra-arg — see the model-guide skill.
+RESERVED_EXTRA_FLAGS = frozenset(
+    {"--out", "--task", "--text", "--model", "--family", "--metrics"}
+)
+# Request options this generator reports in metadata; letting --extra-arg
+# override them would make the recorded provenance wrong.
+RESERVED_REQUEST_OPTIONS = frozenset({"seed", "duration_sec"})
+
+
+def split_extra_args(raw_values: list[str]) -> tuple[list[str], str | None]:
+    """Shell-split repeatable --extra-arg values; reject provenance-breaking ones."""
+    tokens: list[str] = []
+    for raw in raw_values:
+        try:
+            parts = shlex.split(raw)
+        except ValueError as exc:
+            return [], f"--extra-arg {raw!r} is not shell-parseable: {exc}"
+        for index, token in enumerate(parts):
+            flag = token.split("=", 1)[0]
+            if flag in RESERVED_EXTRA_FLAGS:
+                return [], (
+                    f"--extra-arg may not set {flag}: this generator owns it. Change "
+                    "[audiocpp] in the config instead, or pass --request-option."
+                )
+            key = None
+            if flag == "--request-option" and "=" not in token:
+                if index + 1 < len(parts):
+                    key = parts[index + 1].split("=", 1)[0]
+            elif flag == "--request-option":
+                key = token.split("=", 1)[1].split("=", 1)[0]
+            if key in RESERVED_REQUEST_OPTIONS:
+                return [], (
+                    f"--extra-arg may not override request-option {key!r}: it is recorded "
+                    "in take metadata, so overriding it would falsify provenance. Use the "
+                    "first-class --seed / --duration-sec flag."
+                )
+        tokens += parts
+    return tokens, None
 
 
 def fail(message: str) -> int:
@@ -61,7 +104,19 @@ def main() -> int:
         default=None,
         help="Override [audiocpp].model_dir (component-mix A/B tests)",
     )
+    parser.add_argument(
+        "--extra-arg",
+        action="append",
+        default=[],
+        metavar="ARGS",
+        help="audio.cpp CLI flag(s) forwarded verbatim (repeatable, shell-split: "
+        '--extra-arg "--request-option top_k=80"). See the model-guide skill.',
+    )
     args = parser.parse_args()
+
+    extra_tokens, extra_error = split_extra_args(args.extra_arg)
+    if extra_error:
+        return fail(extra_error)
 
     session: Path = args.session
     caption_path = session / "caption.md"
@@ -121,6 +176,7 @@ def main() -> int:
     for key in ("language_model_gguf", "rvq_depth_decoder_gguf", "flow_transformer_gguf"):
         if key in ac:
             cmd += ["--session-option", f"{ac['family']}.{key}={ac[key]}"]
+    cmd += extra_tokens
     cmd += [
         "--out", str(wav_path),
         "--metrics",
@@ -193,6 +249,8 @@ def main() -> int:
         "bytes": size,
         "elapsed_s": elapsed,
         "started_utc": datetime.now(UTC).isoformat(),
+        # Recorded so the take stays honest about model-native overrides.
+        "extra_args": extra_tokens or None,
     }
     meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
@@ -209,6 +267,8 @@ def main() -> int:
         "elapsed_s": elapsed,
         "error": None,
     }
+    if extra_tokens:
+        result["extra_args"] = extra_tokens
     if ac.get("mp3"):
         tr = subprocess.run(
             [

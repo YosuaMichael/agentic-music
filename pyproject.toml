@@ -1,7 +1,7 @@
 [project]
 name = "agentic-music"
 version = "0.0.1"
-description = "Agent-executable local music generation studio built around MiniMax Music 3 served via SGLang-Omni."
+description = "Agent-executable local music generation studio: YuE2 (default) and MiniMax Music 3 on your own GPU, orchestrated by coding agents."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { file = "LICENSE" }
@@ -10,6 +10,7 @@ dependencies = []
 
 [project.urls]
 Upstream-model = "https://huggingface.co/MiniMaxAI/MiniMax-Music3"
+Upstream-model-yue2 = "https://huggingface.co/m-a-p/YuE2-3B"
 
 [dependency-groups]
 dev = ["ruff>=0.8", "pytest>=8"]

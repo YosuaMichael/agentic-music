@@ -1,0 +1,4 @@
+interface:
+  display_name: "agentic-music Model Guide"
+  short_description: "Per-model parameters and capabilities for yue2 and minimax-music3"
+  default_prompt: "Use model-guide to look up the parameters and capabilities of the model this session uses."

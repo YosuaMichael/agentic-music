@@ -3,7 +3,7 @@
 
 Usage:
     python scripts/generate.py --session studio/sessions/<song-id> --seed 7 \
-                               [--config configs/provider.toml]
+                               [--extra-arg KEY=VALUE]... [--config configs/provider.toml]
 
 Reads caption.md (instructions) and lyrics.txt (input) from the session dir,
 POSTs to the shared speech API served by SGLang-Omni, and writes:
@@ -46,6 +46,14 @@ from pathlib import Path
 
 HTTP_TIMEOUT_S = 3600
 
+# Payload keys this generator owns (the session file contract and what take
+# metadata records). Any OTHER key an agent supplies via --extra-arg KEY=VALUE is
+# merged into the request, so a server that grows new knobs stays reachable
+# without a code change — see the model-guide skill.
+RESERVED_PAYLOAD_KEYS = frozenset(
+    {"model", "input", "instructions", "response_format", "seed", "max_new_tokens", "stream"}
+)
+
 
 def fail(code: int, message: str) -> int:
     print(json.dumps({"schema": "generate/v1", "ok": False, "error": message}))
@@ -73,7 +81,29 @@ def main() -> int:
         default=None,
         help="Explicit take number (for concurrent dispatch — avoids numbering races)",
     )
+    parser.add_argument(
+        "--extra-arg",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Extra request-payload field(s) merged into the POST body (repeatable). "
+        "Keys this generator owns are rejected. See the model-guide skill.",
+    )
     args = parser.parse_args()
+
+    extra_payload: dict[str, object] = {}
+    for raw in args.extra_arg:
+        key, sep, value = raw.partition("=")
+        key = key.strip()
+        if not sep or not key:
+            return fail(2, f"--extra-arg {raw!r} must look like KEY=VALUE")
+        if key in RESERVED_PAYLOAD_KEYS:
+            return fail(
+                2,
+                f"--extra-arg may not override payload key {key!r}: this generator owns it "
+                "(use --seed / --max-new-tokens).",
+            )
+        extra_payload[key] = value
 
     session: Path = args.session
     caption_path = session / "caption.md"
@@ -101,6 +131,7 @@ def main() -> int:
         "max_new_tokens": max_new_tokens,
         "stream": False,
     }
+    payload.update(extra_payload)
 
     takes_dir = session / "takes"
     takes_dir.mkdir(parents=True, exist_ok=True)
@@ -161,6 +192,8 @@ def main() -> int:
         "elapsed_s": elapsed,
         "started_utc": datetime.now(UTC).isoformat(),
     }
+    if extra_payload:
+        metadata["extra_payload"] = extra_payload
     meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
     print(
@@ -174,6 +207,7 @@ def main() -> int:
                 "bytes": len(body),
                 "elapsed_s": elapsed,
                 "error": None,
+                **({"extra_payload": extra_payload} if extra_payload else {}),
             },
             indent=2,
         )

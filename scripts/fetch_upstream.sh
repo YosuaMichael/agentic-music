@@ -44,6 +44,7 @@ mkdir -p "$OSS_DIR" "$DOCS_DIR"
 UPSTREAMS=(
   "minimax-music3|https://github.com/MiniMax-AI/MiniMax-Music3.git|main|README.md skills/music-caption-rewriter/SKILL.md skills/music-caption-rewriter/references/genre-router.md"
   "skills|https://github.com/MiniMax-AI/skills.git|main|LICENSE skills/minimax-music-gen/SKILL.md skills/minimax-music-gen/references/prompt_guide.md"
+  "yue2|https://github.com/multimodal-art-projection/YuE.git|main|README.md LICENSE MODEL_LICENSE pyproject.toml examples/song.json skills/yue2-music/SKILL.md"
 )
 
 sha256_of() { sha256sum "$1" | cut -d' ' -f1; }
@@ -129,9 +130,14 @@ cat >> "$DOCS_DIR/upstream.md" <<'EOF'
 ## Why these pins
 
 - `minimax-music3`: model card, serving instructions (SGLang-Omni), and the official
-  `music-caption-rewriter` skill documentation referenced by skills/compose-brief.
+  `music-caption-rewriter` skill documentation referenced by .dsh/skills/compose-brief.
 - `skills`: MIT-licensed MiniMax agent-skills collection; `minimax-music-gen` interaction
-  protocol adapted into `skills/compose-brief` (attribution in NOTICE).
+  protocol adapted into .dsh/skills/compose-brief (attribution in NOTICE).
+- `yue2`: the YuE2 repository (multimodal-art-projection/YuE, main branch). Used as the
+  install source for the optional `yue2` music model (`scripts/setup_yue2.py` installs
+  from this pinned checkout) and read by .dsh/skills for prompt-shape guidance. First-party
+  code is Apache-2.0; the model weights are CC BY-NC 4.0 (non-commercial) and are never
+  redistributed here - see NOTICE and plans/2026-09-13-yue2-default-model.md.
 
 Digest verification covers exactly the files agentic-music reads; full checkouts are not
 redistributed. See AGENTS.md hard rules before touching `oss/`.
