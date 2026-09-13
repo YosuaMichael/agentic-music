@@ -34,10 +34,17 @@ Rule) in the same turn. Rules in that file override habit.
   (`yue2`): frontier quality, **measured here at 45.5 s of model time for a 107.8 s
   song (~55 s end to end)** and ~9.3 GiB peak VRAM, writes an editable score into
   `takes/take-NN.yue2/score.abc`. Its weights are **CC BY-NC 4.0 — personal/
-  non-commercial use only**, and it **cannot make instrumentals**. `minimax-music3`
-  (audio.cpp Q8 GGUF) is the alternative: it handles instrumentals, renders a full
-  song in ~4 minutes, and short clips are faster. Never switch a session's model on
-  your own. For each model's own knobs, read the **model-guide** skill.
+  non-commercial use only**. `minimax-music3` (audio.cpp Q8 GGUF) is the
+  alternative: commercially usable output, ~4 minutes per song. Never switch a
+  session's model on your own. For each model's own knobs, read the **model-guide**
+  skill.
+- **NEITHER model can make an instrumental.** This is settled — do not promise one
+  and do not try another prompt formula. YuE2 refuses (lyrics required); MiniMax
+  Music 3 accepts an empty `lyrics.txt` and **sings anyway** (three failed attempts
+  are logged in `learnings/`, and the owner confirms it always happens). If asked
+  for an instrumental, say so up front and let the user choose: render anyway and
+  expect vocals, make it a vocal song, or skip this studio. The generator returns a
+  `warnings` entry on such attempts rather than pretending they worked.
 - Every new take also produces an `.mp3` companion for sharing, plus frozen
   per-take copies of the prompt inputs that produced it
   (`takes/take-NN.style.txt` for yue2, `.caption.md`, `.lyrics.txt`,

@@ -37,7 +37,14 @@ label = "MiniMax Music 3 (Structured Caption)"
 engine = "minimax"
 weights_license = "MiniMax-Music3 Community License"
 commercial_use = true
-supports_instrumental = true
+# FALSE — and this is a correction, not an oversight. An empty lyrics.txt plus a
+# "pure instrumental, no vocals" caption was believed to work; it does not. The
+# owner reports it always sang, across many attempts, and three 2026-08-27 studio
+# learnings entries record successively stronger attempts failing the same way.
+# NEITHER shipped model renders instrumental-only: tell the user before spending
+# GPU time (compose-brief Step 0). See
+# plans/2026-09-14-instrumental-generation-unsupported.md.
+supports_instrumental = false
 prompt_artifact = "caption.md"
 
 # ---------------------------------------------------------------------------

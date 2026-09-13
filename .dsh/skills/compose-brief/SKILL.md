@@ -17,8 +17,8 @@ origin: >
 ## Inputs
 
 - The user's request: anything from a one-liner ("a sad piano piece") to a
-  detailed spec. Instrumental and vocal songs are both in scope.
-  Cover versions are NOT possible with local Music 3 — say so if asked.
+  detailed spec. Vocal songs are in scope. **Instrumental-only is NOT supported**
+  (neither model can do it) and covers are not possible locally — see Step 0.
 
 ## Outputs (create `studio/sessions/<song-id>/`, id = `YYYYMMDD-HHMMSS-<slug>`)
 
@@ -26,7 +26,7 @@ origin: >
 |---|---|
 | `brief.md` | Full interview result: genre/subgenre, mood arc, BPM/key hints, vocal character, instrument list, production feel, references, exclusions |
 | `model.json` | The music-model choice for this session, written by `scripts/select_model.py`. Never hand-edit; never re-ask once it exists |
-| `lyrics.txt` | Final lyrics with Music 3 section tags: `[Intro]` `[Verse]` `[Pre-Chorus]` `[Chorus]` `[Post-Chorus]` `[Bridge]` `[Instrumental]` `[Solo]` `[Outro]`. **Completely empty (0 bytes) for instrumentals — no tags, no placeholder text** |
+| `lyrics.txt` | Final lyrics with Music 3 section tags: `[Intro]` `[Verse]` `[Pre-Chorus]` `[Chorus]` `[Post-Chorus]` `[Bridge]` `[Instrumental]` `[Solo]` `[Outro]`. **Completely empty (0 bytes) only when the user, after being told instrumentals are unsupported, chose to attempt one anyway** — it is a request that the model usually ignores, not a supported mode |
 | `style.txt` | **YuE2's prompt**: ONE line, comma-separated — language, genre/subgenre, vocal character, 2–3 key instruments, tempo/feel. E.g. `English, warm piano pop, expressive lead voice, acoustic piano, rounded bass and light drums, lyrical melody, unhurried, 88 BPM`. No headings, no prose, no lyric text, no section tags. Needed in every session (the default model consumes it) |
 | `caption.md` (+ `.json` on request) | Structured Caption produced via `$music-caption-rewriter`: Global Metadata / Vocal Details / Arrangement. Needed for MiniMax Music 3 takes |
 | `caption.json` | Machine-readable twin of the caption for programmatic consumers. Schema: `{"source_skill": "music-caption-rewriter", "inputs": {"description": "<one-paragraph brief summary>", "lyrics_sections": ["[Verse]", "..."]}, "rewritten_caption": "<exact full text of caption.md>"}` |
@@ -42,11 +42,41 @@ native prompt — never feed one to the other.
    if missing, treat as empty); apply its rules
    throughout the interview and artifact writing.
 
-1. Song category: **vocal** or **instrumental** (cover → explain unsupported locally).
+1. Song category: **vocal** or **instrumental** — see the hard rule below.
 2. Mode: **Basic** (clear one-liner → infer everything, confirm once) or
    **Advanced** (user wants control over lyrics/prompt/structure).
 
 Ambiguity is resolved by asking, never by assuming silently.
+
+### Instrumental requests: say this FIRST, before any other work
+
+**Neither shipped model can generate instrumental-only audio.** This is settled,
+not a prompting problem:
+
+- **YuE2** (`yue2`, the default) requires `lyrics` upstream and has no
+  instrumental mode — it refuses outright.
+- **MiniMax Music 3** accepts an empty `lyrics.txt` and then **still sings**. The
+  owner reports this across many attempts, and `studio/learnings/LEARNINGS.md`
+  records three separate 2026-08-27 entries where successively stronger captions
+  ("strictly instrumental" → repeated in every section → truly 0-byte lyrics with
+  the words *singing*/*vocal line* removed) all still produced vocals.
+
+So when the user asks for an instrumental, **before the interview, before the
+model question, before any GPU time**, tell them plainly that neither model can do
+it and offer the honest options:
+
+1. **Render it anyway** — accept that vocals will very likely appear, and treat the
+   take as an experiment rather than a deliverable.
+2. **Make it a vocal song** — what both models are actually good at.
+3. **Don't use this studio for it today** — no instrumental path exists. (The same
+   audio.cpp runtime does expose other `gen` families — `stable_audio`, `ace_step`,
+   `heartmula` — which are *unverified leads* for a future feature, not available
+   now. See [plans/2026-09-14-instrumental-generation-unsupported.md](../../../plans/2026-09-14-instrumental-generation-unsupported.md).)
+
+Never promise an instrumental, and never present a sung take as the instrumental
+the user asked for. If they choose option 1, keep going with the 0-byte
+`lyrics.txt` convention below, and expect `generate/v1` to carry a `warnings`
+entry saying exactly this.
 
 ## Step 0b — Music model: ask ONCE, here, before writing any prompt artifact
 
@@ -65,17 +95,15 @@ before Step 1** so the prompts match the model.
    | Option | Why they'd pick it |
    |---|---|
    | **YuE2 — default** (`yue2`) | Frontier quality (top open model on WildSongBench, ahead of MiniMax Music 3 and Suno v5), ~3× faster, ~11 GB VRAM, and it writes an editable melody+chord score. **Weights are CC BY-NC 4.0: personal/non-commercial use only.** Vocal songs only |
-   | **MiniMax Music 3** (`minimax-music3`) | The previous default engine (audio.cpp Q8 GGUF). **Required for instrumentals** — YuE2 has no instrumental mode |
+   | **MiniMax Music 3** (`minimax-music3`) | The previous default engine (audio.cpp Q8 GGUF), ~4 min per song. Pick it for commercially usable output, or to A/B against YuE2. **Also vocal songs only** — it has no instrumental mode either |
 
    One line of context for the user:
-   *"Default is YuE2 (best quality, ~3× faster). Pick MiniMax Music 3 if you want
-   an instrumental, or if you need commercially usable output — YuE2's weights are
-   non-commercial."*
+   *"Default is YuE2 (best quality, ~3× faster). Pick MiniMax Music 3 if you need
+   commercially usable output — YuE2's weights are non-commercial."*
 
-   Categories come from Step 0: if the song is an **instrumental**, say plainly
-   that YuE2 cannot render it and that MiniMax Music 3 is the only option, then
-   still default the *choice* to `yue2` only if the user prefers to change the
-   song to a vocal one — otherwise record `minimax-music3`.
+   Category comes from Step 0: **instrumental requests are already handled there**
+   (neither model can do them), so do not offer instrumentals as a reason to pick a
+   model — no model choice unlocks them.
 
 3. Report availability honestly before they commit. The same command lists each
    model with `ready` (`true` = installed, `false` = missing, `null` = cannot
@@ -123,11 +151,12 @@ Never reproduce copyrighted lyrics. Original lyrics only.
 Iterative editing contract: "change the second chorus" rewrites only that
 section. Show lyrics formatted with their section markers before moving on.
 
-**Instrumental rule:** if category is *instrumental*, `lyrics.txt` must remain
-**completely empty (0 bytes)** — do not write any section tags (`[Intro]`,
-`[Verse]`, etc.), placeholder text, or explanatory notes. Leave the file empty
-and rely on the caption's `pure instrumental, no vocals` style prompt to drive
-the arrangement.
+**Instrumental rule:** if the user chose to *attempt* an instrumental after the Step 0
+warning, `lyrics.txt` must remain **completely empty (0 bytes)** — do not write any
+section tags (`[Intro]`, `[Verse]`, etc.), placeholder text, or explanatory notes, and
+do not try another caption formula: three escalating strategies already failed. Leave the
+file empty, carry the `pure instrumental, no vocals` style prompt in the caption, and
+tell the user up front that the model will probably sing anyway.
 
 ## Step 3 — Prompt artifacts (style.txt, then the Structured Caption)
 
@@ -147,9 +176,9 @@ Rules:
 - **No lyric text, no section tags, no production prose, no bullet points.**
 - Preserve the user's explicit constraints and exclusions verbatim (e.g.
   `no guitar`, `no EDM`).
-- An instrumental gets no vocal descriptor and says `instrumental` explicitly,
-  but remember it can then only be rendered by MiniMax Music 3 (YuE2 has no
-  instrumental mode — see Step 0b).
+- An attempt at an instrumental gets no vocal descriptor and says `instrumental`
+  explicitly, but remember no model choice makes it work — the take will most
+  likely still sing (Step 0).
 
 ### 3b — Structured Caption (`caption.md` + `caption.json`)
 
@@ -200,11 +229,11 @@ A merged or dropped tool invocation can silently lose a write — verify on disk
 instead of trusting earlier tool results:
 - **Vocal:** `brief.md`, `lyrics.txt`, `style.txt`, `caption.md`, `caption.json`
   all exist **non-empty**, and `model.json` records the chosen model.
-- **Instrumental:** `brief.md`, `style.txt`, `caption.md`, `caption.json`
-  non-empty; `lyrics.txt` must exist and be **completely empty (0 bytes)**; and
-  `model.json` must record `minimax-music3`, because YuE2 cannot render
-  instrumentals. If it still says `yue2`, go back to Step 0b — do not proceed to
-  generation, which would fail.
+- **Instrumental (attempted after the Step 0 warning):** `brief.md`, `style.txt`,
+  `caption.md`, `caption.json` non-empty; `lyrics.txt` must exist and be
+  **completely empty (0 bytes)**; `model.json` is recorded normally (either model —
+  neither can actually deliver it). Re-confirm with the user that this take is
+  expected to contain vocals before spending GPU time.
 
 ## Handoff
 

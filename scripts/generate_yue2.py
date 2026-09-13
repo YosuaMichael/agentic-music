@@ -323,11 +323,14 @@ def main() -> int:
 
     lyrics = lyrics_path.read_text(encoding="utf-8-sig")
     if not lyrics.strip():
-        # Upstream requires lyrics and has no instrumental mode (decision Y9).
+        # Upstream requires lyrics and has no instrumental mode (decision Y9), and
+        # neither does the other shipped model (2026-09-14 correction).
         return fail(
-            f"{lyrics_path} is empty: YuE2 cannot generate instrumentals (upstream "
-            "'lyrics' is a required field with no instrumental mode). Choose the "
-            "minimax-music3 model for this session, or write lyrics with section tags."
+            f"{lyrics_path} is empty: YuE2 has no instrumental mode (upstream 'lyrics' "
+            "is a required field). No shipped model can do instrumental-only — "
+            "MiniMax Music 3 has no instrumental mode either and has always produced "
+            "vocals. Write lyrics with section tags, or tell the user instrumental-only "
+            "is unsupported: plans/2026-09-14-instrumental-generation-unsupported.md"
         )
 
     style, style_source = read_style(session)

@@ -50,12 +50,22 @@ point of this skill.
 | | `yue2` — **default** | `minimax-music3` |
 |---|---|---|
 | Weights license | **CC BY-NC 4.0 — non-commercial only** | MiniMax-Music3 Community License |
-| Instrumentals | ❌ impossible (lyrics required) | ✅ empty `lyrics.txt` is the mechanism |
+| Instrumentals | ❌ impossible (lyrics required) | ❌ **also impossible** — accepts empty lyrics, then sings anyway |
 | Prompt artifact | `style.txt` (short comma list) | `caption.md` (Structured Caption) |
 | Editable score | ✅ `takes/take-NN.yue2/score.abc` | ❌ |
 | Length control | ❌ none — model decides | ✅ `--duration-sec` / `--max-new-tokens` |
 | Engines | one (`yue2` CLI, WSL on Windows) | `audiocpp` (Windows-native) or `local` (SGLang server) |
 | Measured on this machine | see §1.6 (107.8 s song in 45.5 s model time) | see §2.5 |
+
+**Instrumental-only is unsupported by BOTH models.** YuE2 refuses outright; MiniMax
+Music 3 takes the empty-lyrics request and sings anyway — the owner reports this across
+many attempts, and three 2026-08-27 studio learnings entries record successively
+stronger caption/lyrics strategies all failing. Do not promise an instrumental, and do
+not "try a better caption": `[models.*].supports_instrumental` is `false` for both, and
+an empty `lyrics.txt` makes the MiniMax generator return a `warnings` entry. The same
+audio.cpp runtime does expose other `gen` families (`stable_audio`, `ace_step`,
+`heartmula`) as **unverified leads** — see
+[plans/2026-09-14-instrumental-generation-unsupported.md](../../../plans/2026-09-14-instrumental-generation-unsupported.md).
 
 Cover versions: neither model is wired for them today (`yue2` *can* do
 ABC-conditioned covers upstream; our wrapper blocks `--abc-file` so provenance
@@ -138,7 +148,8 @@ Subcommands: `yue2 doctor [--verify-hashes]`, `yue2 generate`, `yue2 batch
 ### 1.5 Gotchas
 
 - `lyrics` is mandatory → an empty `lyrics.txt` is refused by our wrapper (exit 2)
-  rather than sent as a broken request. Instrumental songs must use MiniMax.
+  rather than sent as a broken request. **Instrumental songs are not a MiniMax job
+  either** — no shipped model can render one (see the table above).
 - `--vae legacy` is *not* a name for the default VAE; `standard` **is** `YuE2-Vae`.
 - A non-empty output directory raises upstream — our wrapper retires the previous
   attempt as `take-NN.yue2_failed` instead of deleting it.
@@ -252,10 +263,12 @@ not in the per-take call.
 
 ### 2.3 Capabilities
 
-- ✅ **Instrumentals** (0-byte `lyrics.txt` + a `no vocals` caption)
 - ✅ Multilingual (`languages=auto`), style-conditioned via the Structured Caption
 - ✅ Length budget (short clip iteration is practical)
 - ✅ Offline CLI engine with no Python server
+- ❌ **No instrumental mode.** An empty `lyrics.txt` is a request the model ignores: it
+  sings anyway. `[models.minimax-music3].supports_instrumental = false`, and the
+  generator returns a `warnings` entry when lyrics are empty.
 - ❌ No symbolic score / editable composition
 - ❌ No speaker reference or timestamps (per `--inspect`)
 
@@ -265,6 +278,10 @@ not in the per-take call.
   exist before it honours component overrides — that is why `setup_audiocpp.py`
   builds a hardlink directory with Q8 content under `*_q4_0.gguf` names. Don't
   "fix" that; it is load-bearing.
+- **Don't spend another attempt on instrumental prompting.** Three escalating
+  strategies are already recorded as failures (strictly-instrumental caption →
+  exclusion repeated in every section → truly 0-byte lyrics with the words
+  *singing*/*vocal line* removed). The limit is the model, not the wording.
 - `[provider].type = "local"` needs `scripts/serve.py status` healthy first; the
   audiocpp engine needs no server.
 - Its caption is model-specific: feeding `style.txt` here (or vice versa) degrades

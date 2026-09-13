@@ -17,8 +17,10 @@ description: >
    can silently lose a file):
    - `brief.md`, `style.txt` must be non-empty (style.txt is the prompt the
      default model reads);
-   - `lyrics.txt` must exist, and be **completely empty (0 bytes) for
-     instrumentals**, non-empty for vocal songs;
+   - `lyrics.txt` must exist and be non-empty for vocal songs. An **empty**
+     `lyrics.txt` means an instrumental attempt: no shipped model can do
+     instrumental-only, so confirm the user accepted that (compose-brief Step 0)
+     before spending GPU time, and expect a `warnings` entry in the result;
    - `caption.md` / `caption.json` must be non-empty *only* for
      `minimax-music3` sessions.
 2. **Music model — ask once, then never again:**
@@ -134,7 +136,8 @@ Guard against it:
 | Truncated/silent audio | Keep the file, flag it; judge-quality will quantify the defect. `"truncated": true` on a yue2 take means the model hit its token budget — usually lyrics that are too long; shorten them via compose-brief |
 | `yue2` reports it is not installed | `python scripts/setup_yue2.py` (one-time, ~8 GB of weights) — do not hand-install inside WSL |
 | `yue2` reports no CUDA inside the runtime | Reinstall the NVIDIA Windows driver, `wsl.exe --shutdown`, retest; report rather than editing the WSL install by hand |
-| `yue2` reports *lyrics.txt is empty* | YuE2 has no instrumental mode: either switch the session model (compose-brief Step 0b) or write lyrics. Do not stub placeholder lyrics to get past the guard |
+| `yue2` reports *lyrics.txt is empty* | YuE2 has no instrumental mode — and neither does MiniMax Music 3. Do not switch models hoping to unlock it and do not stub placeholder lyrics to get past the guard: tell the user instrumental-only is unsupported (`plans/2026-09-14-instrumental-generation-unsupported.md`) and let them decide |
+| `warnings` in the result mentions *empty lyrics* | The take was an instrumental attempt. It will very likely contain vocals: report that plainly instead of presenting it as the instrumental the user asked for, and offer to re-render as a vocal song |
 | Job id `unknown` / GPU idle after dispatch | Dispatch was silently lost: relaunch as a fresh background job and verify GPU utilization before reporting any ETA |
 
 Never delete failed takes — rename with `_failed` suffix so evidence persists.

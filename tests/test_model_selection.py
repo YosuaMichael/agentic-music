@@ -36,7 +36,7 @@ label = "MiniMax Music 3"
 engine = "minimax"
 weights_license = "MiniMax-Music3 Community License"
 commercial_use = true
-supports_instrumental = true
+supports_instrumental = false
 prompt_artifact = "caption.md"
 
 [provider]
@@ -179,11 +179,33 @@ def test_choice_declares_licence_and_instrumental_support(env, monkeypatch, caps
     )
     by_id = {entry["id"]: entry for entry in out["available"]}
     assert by_id["yue2"]["commercial_use"] is False
-    assert by_id["yue2"]["supports_instrumental"] is False
     assert by_id["yue2"]["prompt_artifact"] == "style.txt"
-    assert by_id["minimax-music3"]["supports_instrumental"] is True
     assert by_id["minimax-music3"]["prompt_artifact"] == "caption.md"
     assert out["default"] == "yue2"
+    # NEITHER model can do instrumental-only. Locked in because this was believed
+    # to be a MiniMax-only job for a long time and it cost the user real attempts:
+    # plans/2026-09-14-instrumental-generation-unsupported.md
+    assert [e["id"] for e in out["available"] if e["supports_instrumental"]] == []
+
+
+def test_no_shipped_model_claims_instrumental_support() -> None:
+    """Guard the shipped registry, not just the fixture, against regression."""
+    import tomllib
+
+    cfg = tomllib.loads(
+        (SCRIPTS.parent / "configs" / "provider.toml").read_text(encoding="utf-8")
+    )
+    models = cfg["models"]
+    claiming = [
+        model_id
+        for model_id in models["available"]
+        if (models.get(model_id) or {}).get("supports_instrumental")
+    ]
+    assert claiming == [], (
+        "instrumental-only is unsupported by every shipped model; a true here would "
+        "re-promise something both models fail at "
+        "(plans/2026-09-14-instrumental-generation-unsupported.md)"
+    )
 
 
 def test_corrupt_choice_file_fails_loudly(env, monkeypatch, capsys) -> None:
@@ -333,6 +355,15 @@ def test_yue2_ignores_a_bom_when_detecting_empty_lyrics(env, monkeypatch, capsys
     )
     assert code == 2
     assert "instrumental" in out["error"]
+
+
+def test_audiocpp_warns_that_empty_lyrics_cannot_be_instrumental() -> None:
+    """MiniMax has no instrumental mode either; the attempt must be flagged."""
+    mod = _load("generate_audiocpp.py")
+    for empty in ("", "   \n", "\ufeff\r\n"):
+        warnings = mod.lyrics_warnings(empty)
+        assert len(warnings) == 1 and "no instrumental mode" in warnings[0], repr(empty)
+    assert mod.lyrics_warnings("[Verse]\nsing") == []
 
 
 def test_yue2_extra_arg_cannot_falsify_provenance(env, monkeypatch, capsys) -> None:

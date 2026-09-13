@@ -58,6 +58,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Corrected: instrumental-only is unsupported by BOTH models, not just YuE2.**
+  MiniMax Music 3 was documented (and configured) as the instrumental path via an
+  empty `lyrics.txt`; the owner reports it always sang regardless, and three
+  2026-08-27 studio learnings entries record successively stronger caption/lyrics
+  strategies failing the same way. `[models.minimax-music3].supports_instrumental`
+  is now `false`, so **no shipped model renders instrumentals**; compose-brief says
+  so before any GPU time; an empty `lyrics.txt` on MiniMax now returns a
+  machine-readable `warnings` entry instead of quietly delivering vocals; and the
+  YuE2 refusal no longer points users at MiniMax as an alternative. Locked in by
+  tests that fail if any registry entry re-claims instrumental support —
+  [plans/2026-09-14-instrumental-generation-unsupported.md](plans/2026-09-14-instrumental-generation-unsupported.md).
 - **YuE2 generation is now offline by default** (`[yue2].offline = true`). Online, an
   identical take spent ~250 s revalidating already-present weights over ~46 Hugging Face
   connections (299.5 s total vs 54.7 s offline). `setup_yue2.py` remains the step that

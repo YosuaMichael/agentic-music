@@ -146,7 +146,7 @@ Parse `setup_yue2/v1`:
 If Step 3 was skipped, this step will run `scripts/fetch_upstream.sh` itself to
 get `oss/yue2` (the pinned checkout it installs from).
 
-Smoke-test generation against any prepared session (YuE2 cannot do
+Smoke-test generation against any prepared session (no model can do
 instrumentals, so the session needs non-empty lyrics and a `style.txt`):
 
 ```bash

@@ -43,6 +43,8 @@ Last updated: 2026-08-23
 | YuE2 offline-by-default (`[yue2].offline = true`) | ✅ | Online revalidation cost ~250 s (5.5× the take): 299.5 s online vs 54.7 s offline for the same seed — plan decision Y10 |
 | Per-model capability reference (no standardisation) | ✅ | [`model-guide`](../.dsh/skills/model-guide/SKILL.md) skill: per-model request fields, CLI flags, defaults, capabilities, limits, measured performance; `--extra-arg` passthrough on the dispatcher and all three generators — plan decision Y11 |
 | YuE2 `cot=melody`, ABC covers, `batch`, fp8, vLLM | ⬜ | Explicitly out of scope for now; `--abc-file` is blocked by the wrapper on purpose |
+| Instrumental-only generation | 🚫 **unsupported by both models** | Corrected 2026-09-14: MiniMax Music 3 also failed (owner + three 2026-08-27 learnings entries). `supports_instrumental = false` for every registry entry; compose-brief warns before GPU time; empty lyrics now returns a `warnings` entry; tests fail if any entry re-claims it — [plans/2026-09-14-instrumental-generation-unsupported.md](2026-09-14-instrumental-generation-unsupported.md) |
+| Instrumental path via another `gen` family | ⬜ lead | `audiocpp_cli.exe --list-loaders --json` also exposes `stable_audio`, `ace_step`, `heartmula` — unverified, needs its own dated plan |
 
 | Session-scoped model choice, asked once | ✅ | `scripts/select_model.py` (`select_model/v1`): `needs_choice` gate, recorded choices never re-asked or silently overwritten; compose-brief Step 0b |
 | `style.txt` prompt artifact for YuE2 | ✅ | compose-brief Outputs + Step 3a; consumed by `generate_yue2.py` (falls back to `caption.json.inputs.description`, flagged as degraded) |

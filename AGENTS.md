@@ -98,9 +98,15 @@ judge-quality, presenting ranked results to the user between iterations.
 Dispatch goes through `scripts/generate_take.py` — the backend generators
 (`generate_yue2.py`, `generate_audiocpp.py`, `generate.py`) are only invoked directly by
 the env-setup smoke tests, which deliberately bypass any session's model choice. `yue2`
-requires `style.txt` (short prompt), has **no instrumental mode**, and
-its weights are **CC BY-NC 4.0 (non-commercial)** — see
+requires `style.txt` (short prompt) and its weights are **CC BY-NC 4.0 (non-commercial)**;
+`minimax-music3` uses `caption.md` instead. See
 [plans/2026-09-13-yue2-default-model.md](plans/2026-09-13-yue2-default-model.md).
+
+**Instrumental-only is unsupported by BOTH models** (`supports_instrumental = false` for
+every registry entry). YuE2 refuses outright; MiniMax Music 3 accepts empty lyrics and
+sings anyway, which cost the owner repeated failed attempts. Say so before spending GPU
+time — never promise an instrumental and never try another prompt formula. See
+[plans/2026-09-14-instrumental-generation-unsupported.md](plans/2026-09-14-instrumental-generation-unsupported.md).
 
 ## Session Protocol
 
@@ -142,8 +148,12 @@ for measurements and the exact working config
 ([configs/music3-pipeline.yaml](configs/music3-pipeline.yaml)). First song generated and
 judged in `studio/sessions/20260823-105740-first-light/`.
 
-**YuE2 added 2026-09-13 as the default model** (session-scoped ask-once choice). Runtime
-setup, dispatch and guards are implemented and behaviour-tested; an end-to-end take on a
-real GPU is still the open acceptance test — see
-[plans/2026-09-13-yue2-default-model.md](plans/2026-09-13-yue2-default-model.md) §5. Roadmap
-polish items remain (CI workflow).
+**YuE2 added 2026-09-13 as the default model** (session-scoped ask-once choice) and
+**verified end to end**: setup green, four real takes rendered and judged
+(`studio/sessions/20260913-233400-yue2-first-song/`), 107.8 s song in 45.5 s of model time
+(RTF 0.42), ~9.3 GiB peak — see
+[plans/2026-09-13-yue2-default-model.md](plans/2026-09-13-yue2-default-model.md) §5.1.
+**Corrected 2026-09-14:** instrumental-only is unsupported by *both* models, not just
+YuE2 — see
+[plans/2026-09-14-instrumental-generation-unsupported.md](plans/2026-09-14-instrumental-generation-unsupported.md).
+Roadmap: an instrumental-capable `gen` family, CI workflow.

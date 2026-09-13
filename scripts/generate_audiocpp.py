@@ -83,6 +83,25 @@ def fail(message: str) -> int:
     return 2
 
 
+def lyrics_warnings(lyrics: str) -> list[str]:
+    """Warn when empty lyrics ask for an instrumental this model cannot deliver.
+
+    An empty lyrics.txt is an *attempt* at an instrumental, never a supported mode:
+    MiniMax Music 3 has no instrumental mode and has always produced vocals anyway
+    (three 2026-08-27 studio learnings entries plus the owner's repeated attempts).
+    Returning it as a machine-readable warning keeps a caller from quietly
+    delivering a sung result. See
+    plans/2026-09-14-instrumental-generation-unsupported.md.
+    """
+    if lyrics.lstrip("\ufeff").strip():
+        return []
+    return [
+        "empty lyrics requested: MiniMax Music 3 has no instrumental mode and has "
+        "always produced vocals anyway. Any 'instrumental' result must be checked "
+        "by ear; see plans/2026-09-14-instrumental-generation-unsupported.md"
+    ]
+
+
 def windows_to_cli(path: Path) -> str:
     return str(path)
 
@@ -155,7 +174,9 @@ def main() -> int:
     wav_path = takes_dir / f"{take_name}.wav"
     meta_path = takes_dir / f"{take_name}.metadata.json"
 
-    lyrics = lyrics_path.read_text(encoding="utf-8")
+    lyrics = lyrics_path.read_text(encoding="utf-8-sig")
+    warnings = lyrics_warnings(lyrics)
+
     cmd = [
         str(cli),
         "--task", "gen",
@@ -251,6 +272,7 @@ def main() -> int:
         "started_utc": datetime.now(UTC).isoformat(),
         # Recorded so the take stays honest about model-native overrides.
         "extra_args": extra_tokens or None,
+        "warnings": warnings or None,
     }
     meta_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
 
@@ -269,6 +291,8 @@ def main() -> int:
     }
     if extra_tokens:
         result["extra_args"] = extra_tokens
+    if warnings:
+        result["warnings"] = warnings
     if ac.get("mp3"):
         tr = subprocess.run(
             [

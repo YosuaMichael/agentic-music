@@ -194,14 +194,25 @@ empty `[yue2].extra_generate_args` list is the documented escape hatch for anyon
 to pass `--config`/`--quantization`/`--offload-ar` deliberately.
 
 ### Y9 — Instrumentals are a hard, early failure on YuE2
+> **CORRECTED 2026-09-14.** This decision also claimed `minimax-music3` *can* render
+> instrumentals, and that instrumentals were therefore a "MiniMax-only" job. The owner
+> reports — and three 2026-08-27 learnings entries corroborate — that MiniMax Music 3
+> never produced an instrumental-only song either. **Neither model supports
+> instrumental-only.** See
+> [plans/2026-09-14-instrumental-generation-unsupported.md](2026-09-14-instrumental-generation-unsupported.md).
+> The YuE2-specific content below still stands.
+
 Upstream requires `lyrics` (missing ⇒ `ValueError("Provide style and lyrics")`) and has no
-instrumental mode. Our studio supports instrumentals via a 0-byte `lyrics.txt`.
+instrumental mode. ~~Our studio supports instrumentals via a 0-byte `lyrics.txt`.~~
+**Withdrawn 2026-09-14:** a 0-byte `lyrics.txt` only *asks* MiniMax Music 3 for an
+instrumental, and it sings anyway; no shipped model renders instrumentals.
 
 Therefore:
-1. `[models.yue2]` declares `supports_instrumental = false`, and
-   `[models.minimax-music3]` declares `true`; `select_model.py` reports it.
-2. compose-brief's ask-once step surfaces it when the song is an instrumental, so the user
-   is not led into a backend that cannot render it.
+1. `[models.yue2]` declares `supports_instrumental = false`; the original claim that
+   `[models.minimax-music3]` declares `true` is **withdrawn** — it is `false` too, so
+   `select_model.py` reports no instrumental-capable model at all.
+2. compose-brief's ask-once step no longer offers a model for instrumentals; Step 0 states
+   the limitation before any work begins.
 3. `generate_yue2.py` refuses an empty/whitespace-only `lyrics.txt` with exit 2 and an
    actionable message — never a silently wrong render.
 

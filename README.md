@@ -26,8 +26,18 @@ in that session's `model.json` and never asks again:
 
 | Model | Why | Constraint |
 |---|---|---|
-| **YuE2** — default | Highest-scoring open model on WildSongBench (SongBench Avg 6.73 vs MiniMax Music 3's 6.28 and Suno v5's 6.87), ~3× faster, ~11 GB VRAM, and it writes an **editable melody + chord score** (`score.abc`) per take | **Vocal songs only** (no instrumental mode), and its **weights are CC BY-NC 4.0 — non-commercial use only** |
-| **MiniMax Music 3** | The previous default engine; supports instrumentals and is already installed on this machine | Needs its own weights (~19 GB GGUF or ~25 GB SGLang) |
+| **YuE2** — default | Highest-scoring open model on WildSongBench (SongBench Avg 6.73 vs MiniMax Music 3's 6.28 and Suno v5's 6.87), ~3× faster, ~11 GB VRAM, and it writes an **editable melody + chord score** (`score.abc`) per take | **Vocal songs only**, and its **weights are CC BY-NC 4.0 — non-commercial use only** |
+| **MiniMax Music 3** | The previous default engine, ~4 min per song, commercially usable output | **Also vocal songs only** |
+
+> [!IMPORTANT]
+> **Neither model can produce an instrumental-only track.** YuE2 requires lyrics and has
+> no instrumental mode; MiniMax Music 3 accepts an empty `lyrics.txt` and then sings
+> anyway — repeatedly, regardless of how the caption is worded. The studio says this up
+> front rather than spending GPU time on it, and flags any such attempt with a `warnings`
+> entry. If you specifically need instrumentals, the same audio.cpp runtime exposes other
+> `gen` families (`stable_audio`, `ace_step`, `heartmula`) — unverified leads for a future
+> feature, not available today. Details:
+> [plans/2026-09-14-instrumental-generation-unsupported.md](plans/2026-09-14-instrumental-generation-unsupported.md).
 
 Switching per session is deliberate and reversible (`scripts/select_model.py --force`); the
 repo-wide default lives in `configs/provider.toml`.
