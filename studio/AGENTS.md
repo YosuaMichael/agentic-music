@@ -15,6 +15,10 @@ user instead of fixing infrastructure.
    size, player links), then **ask** what to do next: *1 more take* / *3 more
    takes* / *run auto-judgement* / *done*. Default first generation is **1
    take** — never judge unprompted and never assume a larger batch.
+   For the default `yue2` model generation has **two steps**: it plans the
+   composition first (~19 s — a symbolic score, no audio) and shows it for
+   approval or an edit before rendering (~43 s). That is deliberate; say so when
+   it happens, and skip the gate if the user says "just render it".
 3. Do not read repository plans or decision history; everything needed to
    make a song lives in the skills, `learnings/`, and this file.
 
@@ -58,9 +62,12 @@ Rule) in the same turn. Rules in that file override habit.
 - Sampling parameters (temperature/top_p) do not exist on either model. Length:
   MiniMax Music 3 takes a length budget; **YuE2 has no length control at all**
   (it decides the song's length). Tags in lyrics sit on their own lines.
-- Generation always goes through `python scripts/generate_take.py --session …
-  --seed …`; it routes to whichever model `model.json` records. Never call a
-  backend script directly.
+- Generation always goes through `python scripts/generate_take.py …`; it routes to
+  whichever model `model.json` records. Never call a backend script directly. For
+  `yue2` the two-step form is the default: `--stage plan` writes an approved
+  composition into `plans/plan-NN/`, then `--from-plan plans/plan-NN` renders it.
+  Never edit `plans/plan-NN/score.abc` in place — save edits as
+  `plans/plan-NN.edited.abc` and pass them with `--score-file`.
 - First run (no `oss/` yet): `oss/minimax-music3`, `oss/skills` and `oss/yue2`
   are gitignored upstream checkouts needed by `compose-brief` and by the YuE2
   setup. Fetch them once with `bash scripts/fetch_upstream.sh` (Windows: Git

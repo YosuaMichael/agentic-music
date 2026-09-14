@@ -1,39 +1,82 @@
 #!/usr/bin/env python3
-"""Generate one seeded take with the YuE2 music model.
+"""Produce, review and render YuE2's symbolic score — and generate takes.
 
 Usage:
+    # 1. SCORE FIRST (no audio, ~18 s): plan the composition and stop
+    python scripts/generate_yue2.py --session studio/sessions/<song-id> --seed 7 \
+        --stage plan
+
+    # 2. RENDER the approved score (~42 s): reproduces the planned song exactly;
+    #    an edited score renders the edited composition
+    python scripts/generate_yue2.py --session studio/sessions/<song-id> \
+        --from-plan studio/sessions/<song-id>/plans/plan-01
+
+    # 2b. render an edited copy of that score
+    python scripts/generate_yue2.py --session studio/sessions/<song-id> \
+        --from-plan studio/sessions/<song-id>/plans/plan-01 --score-file my-edit.abc
+
+    # 3. one-shot (plan + audio, unchanged):
     python scripts/generate_yue2.py --session studio/sessions/<song-id> --seed 831001 \
         [--cot full|melody|off] [--take-id N] [--extra-arg "<yue2 flag>"]... \
         [--config configs/provider.toml]
 
-Reads style.txt (the short YuE2 style prompt) and lyrics.txt from the session,
-writes the exact upstream request, runs `yue2 generate` inside the configured
-runtime (WSL2 on Windows, native on Linux), and produces the same session
-artifacts as the other providers:
+Score-first exists because YuE2 plans an editable ABC composition before it
+renders audio, and that plan is the model's real creative decision — so it is
+worth approving (or fixing) before paying for a render. Measured on an RTX 4090:
+plan 18.4 s vs render 41.9 s vs one-shot 54.7 s, and rendering an unedited plan
+reproduced the one-shot take BYTE-IDENTICALLY (plan decision S4).
 
-    studio/sessions/<song-id>/takes/take-NN.wav            # PCM master (judging)
-    studio/sessions/<song-id>/takes/take-NN.flac           # upstream original
+Reading style.txt (the short YuE2 style prompt) and lyrics.txt from the session,
+it writes:
+
+    # --stage plan
+    studio/sessions/<song-id>/plans/plan-NN/                # upstream plan bundle:
+                                                            #   score.abc, plan.json,
+                                                            #   abc_tokens.npy, prefix.npy,
+                                                            #   plan_manifest.json
+    studio/sessions/<song-id>/plans/plan-NN.request.json    # exact request sent
+    studio/sessions/<song-id>/plans/plan-NN.style.txt       # provenance snapshots
+    studio/sessions/<song-id>/plans/plan-NN.lyrics.txt
+
+    # audio (one-shot or --from-plan)
+    studio/sessions/<song-id>/takes/take-NN.wav             # PCM master (judging)
+    studio/sessions/<song-id>/takes/take-NN.flac            # upstream original
     studio/sessions/<song-id>/takes/take-NN.metadata.json
-    studio/sessions/<song-id>/takes/take-NN.request.json   # exact request sent
-    studio/sessions/<song-id>/takes/take-NN.style.txt      # prompt snapshot
-    studio/sessions/<song-id>/takes/take-NN.yue2/          # score.abc, plan.json,
-                                                          # result.json, latent.npy
-    studio/sessions/<song-id>/takes/take-NN.mp3            # when [yue2].mp3
+    studio/sessions/<song-id>/takes/take-NN.request.json    # exact request sent
+    studio/sessions/<song-id>/takes/take-NN.style.txt       # prompt snapshot
+    studio/sessions/<song-id>/takes/take-NN.yue2/           # score.abc, result.json,
+                                                            # latent.npy, generate.log
+    studio/sessions/<song-id>/takes/take-NN.mp3             # when [yue2].mp3
 
-Model-specific limits, both deliberate (plans/2026-09-13-yue2-default-model.md):
+A plan is not a take: plans live in their own namespace, carry no audio, and a
+take records which plan (and which exact score bytes) produced it —
+`rendered_from: {plan, score_sha256, score_edited, plan_score_sha256}`.
+
+Model-specific limits, all deliberate:
   * YuE2 requires lyrics and has NO instrumental mode, so an empty lyrics.txt is
     refused with exit 2 instead of being sent as a broken request (decision Y9).
-  * Upstream exposes no duration/length control, so there is no --duration-sec
-    here; length is emergent from the model (decision Y8).
+  * No duration/length control exists; the score IS the form (decision Y8), which
+    is a further reason to review it before rendering.
+  * `cot=off` sketches no score, so --stage plan is refused for it (nothing to
+    review).
 
 Setup: python scripts/setup_yue2.py. WEIGHTS ARE CC BY-NC 4.0 (non-commercial).
 
-JSON contract (stdout) — generate/v1, the same shape as scripts/generate.py and
-scripts/generate_audiocpp.py, with additive provider fields:
+JSON contracts (stdout):
+  plan/v1      (--stage plan)
+    {"schema": "plan/v1", "ok": true, "provider": "yue2", "model": "...",
+     "cot": "full", "seed": 7, "plan": "studio/.../plans/plan-01",
+     "plan_name": "plan-01", "score_abc": ".../plans/plan-01/score.abc",
+     "score_sha256": "...", "score_lines": 42, "score_preview": "X:1\\n...",
+     "plan_json": "...", "request": "...", "style_source": "style.txt",
+     "truncated": false, "elapsed_s": 18.4, "next": "...", "error": null}
+
+  generate/v1  (audio, identical shape to scripts/generate.py and
+                scripts/generate_audiocpp.py, plus additive provider fields)
     {"schema": "generate/v1", "ok": true, "provider": "yue2", "model": "...",
      "cot": "full", "truncated": false, "rtf": 0.34, "take": "take-01",
      "wav": "...", "flac": "...", "metadata": "...", "native_dir": "...",
-     "bytes": 123, "elapsed_s": 71.4, "error": null}
+     "bytes": 123, "elapsed_s": 71.4, "rendered_from": {...}, "error": null}
 Adding optional keys is non-breaking under our schema policy.
 
 Exit codes: 0 success; 2 bad inputs/config; 8 upstream CLI execution failure.
@@ -42,9 +85,11 @@ Exit codes: 0 success; 2 bad inputs/config; 8 upstream CLI execution failure.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import struct
@@ -58,13 +103,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLI_TIMEOUT_S = 7200
+SCORE_PREVIEW_LINES = 40
 
 # Flags THIS generator owns because they define provenance: the frozen
-# take-NN.request.json must describe exactly what the model received, and the
-# output must land where the session contract says. Everything else the upstream
-# `yue2` CLI accepts (--quantization, --offload-ar, --backend, --device,
-# --budget, --vae, --vae-revision, --revision, --model, --stage, --quiet, …) may
-# be passed through --extra-arg — see the model-guide skill.
+# request.json must describe exactly what the model received, and the output must
+# land where the session contract says. Everything else the upstream `yue2` CLI
+# accepts (--quantization, --offload-ar, --backend, --device, --budget, --vae,
+# --vae-revision, --revision, --model, --quiet, …) may be passed through
+# --extra-arg — see the model-guide skill.
 RESERVED_EXTRA_FLAGS = frozenset(
     {
         "--request",
@@ -77,6 +123,7 @@ RESERVED_EXTRA_FLAGS = frozenset(
         "--seed",
         "--cot",
         "--cfg-scale",
+        "--stage",
     }
 )
 
@@ -94,8 +141,8 @@ def split_extra_args(raw_values: list[str]) -> tuple[list[str], str | None]:
             if flag in RESERVED_EXTRA_FLAGS:
                 return [], (
                     f"--extra-arg may not set {flag}: it would desynchronise the frozen "
-                    "take request from what the model received. Use the first-class flag "
-                    "(--cot) or a [yue2] config key instead."
+                    "request from what the model received. Use the first-class flag "
+                    "(--cot / --stage / --from-plan) or a [yue2] config key instead."
                 )
         tokens += parts
     return tokens, None
@@ -106,8 +153,29 @@ def fail(message: str, code: int = 2) -> int:
     return code
 
 
+def fail_plan(message: str, code: int = 2) -> int:
+    print(json.dumps({"schema": "plan/v1", "ok": False, "provider": "yue2", "error": message}))
+    return code
+
+
 def tail(text: str, lines: int = 25) -> str:
     return "\n".join(text.splitlines()[-lines:])
+
+
+def display_path(path: Path) -> str:
+    """Repo-relative POSIX path when possible, so output is machine-independent."""
+    try:
+        return path.resolve().relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 # --------------------------------------------------------------------------- #
@@ -176,7 +244,8 @@ class Runtime:
         return self._home
 
     def path(self, configured: str) -> str | None:
-        """Map a config path into the runtime: expand ~, map repo-relative paths."""
+        """Map a host path into the runtime: expand ~, map repo-relative and
+        drive-absolute Windows paths onto the WSL /mnt/<drive> mount."""
         if not configured:
             return None
         if configured.startswith("~"):
@@ -186,16 +255,22 @@ class Runtime:
             return home + configured[1:]
         if configured.startswith("/"):  # POSIX absolute: already runtime-valid
             return configured
-        if Path(configured).is_absolute():
-            # A host-absolute path (e.g. C:\...) is only meaningful when the
-            # runtime *is* this host; it cannot be mapped into WSL.
-            return str(Path(configured)) if self.mode == "native" else None
-        absolute = (self.repo_root / configured).resolve()
+        candidate = Path(configured)
+        if candidate.is_absolute():
+            absolute = candidate  # e.g. C:\repo\... — still mappable onto /mnt/c
+        else:
+            absolute = (self.repo_root / configured).resolve()
         if self.mode == "native":
             return str(absolute)
         drive = absolute.drive.rstrip(":").lower()
+        if not drive:
+            return None
         tail_path = absolute.as_posix().split(":", 1)[-1]
         return f"/mnt/{drive}{tail_path}"
+
+    def file_path(self, path: Path) -> str | None:
+        """Map an absolute host path into the runtime (used for session dirs)."""
+        return self.path(str(path))
 
 
 # --------------------------------------------------------------------------- #
@@ -247,6 +322,16 @@ def find_audio(out_dir: Path, take_name: str) -> Path | None:
     return nested[0] if nested else None
 
 
+def find_score(out_dir: Path, name: str) -> Path | None:
+    """Locate the planned score: upstream nests it under the request id."""
+    candidates = [out_dir / name / "score.abc", out_dir / "score.abc"]
+    for path in candidates:
+        if path.is_file() and path.stat().st_size > 0:
+            return path
+    nested = sorted(out_dir.glob("*/score.abc"))
+    return nested[0] if nested else None
+
+
 def read_result_json(native_dir: Path) -> dict:
     path = native_dir / "result.json"
     if not path.is_file():
@@ -256,6 +341,58 @@ def read_result_json(native_dir: Path) -> dict:
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def read_plan_meta(plan_dir: Path) -> dict:
+    """Read a saved plan's request/timing plus its integrity manifest."""
+    meta: dict = {"plan_json": None, "manifest": None, "request": {}, "truncated": None}
+    plan_json = plan_dir / "plan.json"
+    if plan_json.is_file():
+        try:
+            data = json.loads(plan_json.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                meta["request"] = data.get("request") or {}
+                meta["truncated"] = data.get("truncated")
+                meta["timing"] = data.get("timing")
+                meta["plan_json"] = plan_json
+        except json.JSONDecodeError:
+            pass
+    manifest = plan_dir / "plan_manifest.json"
+    if manifest.is_file():
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                meta["manifest"] = data
+        except json.JSONDecodeError:
+            pass
+    return meta
+
+
+def score_edit_state(plan_dir: Path, score_path: Path) -> bool | None:
+    """Has this score been edited since planning?
+
+    True/False when the plan's integrity manifest can answer it (it carries the
+    sha256 of the planned score.abc), None when the manifest is missing or does
+    not cover the score. Verified against upstream: the manifest is exactly what
+    SymbolicPlan.load uses to refuse a modified plan.
+    """
+    meta = read_plan_meta(plan_dir)
+    manifest = meta.get("manifest") or {}
+    planned = manifest.get("score.abc")
+    if not planned or not score_path.is_file():
+        return None
+    return sha256_file(score_path) != planned
+
+
+def score_preview(score_path: Path, max_lines: int = SCORE_PREVIEW_LINES) -> str:
+    try:
+        lines = score_path.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return ""
+    shown = lines[:max_lines]
+    if len(lines) > max_lines:
+        shown.append(f"… ({len(lines) - max_lines} more lines in {score_path.name})")
+    return "\n".join(shown)
 
 
 def wav_format(path: Path) -> tuple[int, int]:
@@ -282,50 +419,53 @@ def retire_stale_dir(out_dir: Path) -> str | None:
         retired = out_dir.with_name(f"{out_dir.name}_failed-{counter}")
         counter += 1
     out_dir.rename(retired)
-    return str(retired)
+    return display_path(retired)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--session", required=True, type=Path)
-    parser.add_argument("--seed", required=True, type=int)
-    parser.add_argument(
-        "--config", type=Path, default=REPO_ROOT / "configs" / "provider.toml"
-    )
-    parser.add_argument(
-        "--cot",
-        choices=["full", "melody", "off"],
-        default=None,
-        help="Override [yue2].cot: symbolic planning mode",
-    )
-    parser.add_argument("--take-id", type=int, default=None)
-    parser.add_argument(
-        "--extra-arg",
-        action="append",
-        default=[],
-        metavar="ARGS",
-        help="Upstream `yue2 generate` flag(s) forwarded verbatim (repeatable, "
-        'shell-split: --extra-arg "--quantization fp8"). See the model-guide skill '
-        "for the model's full vocabulary.",
-    )
-    args = parser.parse_args()
+def next_index(directory: Path, prefix: str) -> int:
+    """Next free NN for `<prefix>-NN` entries (dirs or `<prefix>-NN.*` files)."""
+    numbers: list[int] = []
+    if directory.is_dir():
+        for entry in directory.iterdir():
+            match = re.fullmatch(rf"{prefix}-(\d+)(\..*)?", entry.name)
+            if match:
+                numbers.append(int(match.group(1)))
+    return (max(numbers) + 1) if numbers else 1
 
-    extra_tokens, extra_error = split_extra_args(args.extra_arg)
-    if extra_error:
-        return fail(extra_error)
 
+# --------------------------------------------------------------------------- #
+# Shared setup
+# --------------------------------------------------------------------------- #
+
+
+@dataclass
+class Context:
+    session: Path
+    lyrics: str
+    lyrics_path: Path
+    style: str
+    style_source: str
+    cfg: dict
+    yue2: dict
+    rt: Runtime
+    cli: str
+    extra_tokens: list[str]
+
+
+def prepare_context(args: argparse.Namespace) -> tuple[Context | None, int | None]:
+    """Validate inputs and locate the runtime. Returns (context, error_code)."""
     session: Path = args.session
     if not session.is_dir():
-        return fail(f"session directory does not exist: {session}")
+        return None, fail(f"session directory does not exist: {session}")
     lyrics_path = session / "lyrics.txt"
     if not lyrics_path.is_file():
-        return fail(f"missing {lyrics_path}")
+        return None, fail(f"missing {lyrics_path}")
 
     lyrics = lyrics_path.read_text(encoding="utf-8-sig")
     if not lyrics.strip():
         # Upstream requires lyrics and has no instrumental mode (decision Y9), and
         # neither does the other shipped model (2026-09-14 correction).
-        return fail(
+        return None, fail(
             f"{lyrics_path} is empty: YuE2 has no instrumental mode (upstream 'lyrics' "
             "is a required field). No shipped model can do instrumental-only — "
             "MiniMax Music 3 has no instrumental mode either and has always produced "
@@ -335,7 +475,7 @@ def main() -> int:
 
     style, style_source = read_style(session)
     if not style:
-        return fail(
+        return None, fail(
             f"missing style prompt: {session / 'style.txt'} is absent/empty and "
             "caption.json has no inputs.description. compose-brief writes style.txt "
             "(one comma-separated line: language, genre, vocal character, 2-3 "
@@ -343,27 +483,280 @@ def main() -> int:
         )
 
     if not args.config.is_file():
-        return fail(f"config not found: {args.config}")
+        return None, fail(f"config not found: {args.config}")
     try:
         cfg = tomllib.loads(args.config.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as exc:
-        return fail(f"config is not valid TOML: {exc}")
+        return None, fail(f"config is not valid TOML: {exc}")
     y = cfg.get("yue2")
     if not y:
-        return fail("[yue2] section missing from config")
+        return None, fail("[yue2] section missing from config")
 
-    take_name = ""
+    rt = Runtime(y, REPO_ROOT)
+    if rt.mode not in ("wsl", "native"):
+        return None, fail(f"unknown [yue2].runtime {rt.mode!r}")
+    venv = rt.path(str(y.get("venv_dir", "")))
+    if venv is None:
+        return None, fail(
+            "cannot resolve [yue2].venv_dir inside the runtime"
+            + (" (is WSL installed and running?)" if rt.mode == "wsl" else "")
+        )
+    cli = f"{venv}/bin/yue2"
+    if not rt.bash(f'test -x "{cli}"', timeout=120).ok:
+        return None, fail(
+            f"YuE2 is not installed at {cli} - run: python scripts/setup_yue2.py",
+            code=2,
+        )
+
+    return (
+        Context(
+            session=session,
+            lyrics=lyrics,
+            lyrics_path=lyrics_path,
+            style=style,
+            style_source=style_source,
+            cfg=cfg,
+            yue2=y,
+            rt=rt,
+            cli=cli,
+            extra_tokens=[],
+        ),
+        None,
+    )
+
+
+def base_cli_args(ctx: Context) -> list[str]:
+    """Model/VAE/offline/extra flags common to the plan and audio invocations."""
+    y = ctx.yue2
+    cmd: list[str] = []
+    model = str(y.get("model", "") or "").strip()
+    if model:
+        cmd += ["--model", ctx.rt.path(model) or model]
+    vae = str(y.get("vae", "") or "").strip()
+    if vae:
+        cmd += ["--vae", vae]
+    if y.get("offline"):
+        cmd += ["--offline"]
+    cmd += [str(a) for a in (y.get("extra_generate_args") or [])]
+    cmd += ctx.extra_tokens
+    return cmd
+
+
+def snapshot_provenance(session: Path, dest_dir: Path, stem: str, lyrics_path: Path) -> None:
+    for src, suffix in (
+        (session / "style.txt", ".style.txt"),
+        (session / "caption.md", ".caption.md"),
+        (lyrics_path, ".lyrics.txt"),
+        (session / "caption.json", ".caption.json"),
+    ):
+        if src.is_file():
+            shutil.copyfile(src, dest_dir / f"{stem}{suffix}")
+
+
+# --------------------------------------------------------------------------- #
+# Mode: --stage plan  (score first, no audio)
+# --------------------------------------------------------------------------- #
+
+
+def run_plan(ctx: Context, args: argparse.Namespace) -> int:
+    cot = args.cot or str(ctx.yue2.get("cot", "full"))
+    if cot == "off":
+        return fail_plan(
+            "--stage plan with cot=off has nothing to review: cot=off sketches no "
+            "symbolic score by design. Use --cot full (melody + chords) or "
+            "--cot melody, or skip planning and render one-shot."
+        )
+
+    plans_dir = ctx.session / "plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    plan_num = args.plan_id if args.plan_id is not None else next_index(plans_dir, "plan")
+    plan_name = f"plan-{plan_num:02d}"
+    out_dir = plans_dir / plan_name
+
+    cfg_scale = float(ctx.yue2.get("cfg_scale", 0.0) or 0.0)
+    request: dict[str, object] = {
+        "id": plan_name,
+        "style": ctx.style,
+        "lyrics": ctx.lyrics,
+        "cot": cot,
+        "seed": args.seed,
+    }
+    if cfg_scale > 0:
+        request["cfg_scale"] = cfg_scale
+    request_path = plans_dir / f"{plan_name}.request.json"
+    request_path.write_text(json.dumps(request, indent=2) + "\n", encoding="utf-8")
+
+    request_rt = ctx.rt.file_path(request_path)
+    plans_dir_rt = ctx.rt.file_path(plans_dir)
+    if request_rt is None or plans_dir_rt is None:
+        return fail_plan("cannot map the plans directory into the runtime")
+
+    retired = retire_stale_dir(out_dir)
+    cmd = [ctx.cli, "generate", "--request", request_rt, "--output", plans_dir_rt, "--stage", "plan"]
+    cmd += base_cli_args(ctx)
+
+    started = time.monotonic()
+    res = ctx.rt.run(cmd, timeout=CLI_TIMEOUT_S)
+    elapsed = round(time.monotonic() - started, 1)
+
+    score = find_score(out_dir, plan_name)
+    if score is None:
+        sys.stderr.write(
+            f"[generate_yue2] yue2 --stage plan rc={res.rc}\n"
+            f"--- stdout tail ---\n{tail(res.out)}\n--- stderr tail ---\n{tail(res.err, 40)}\n"
+        )
+        return fail_plan(
+            f"yue2 --stage plan produced no score.abc (rc={res.rc}); see stderr tail. "
+            f"Attempt artifacts kept in {plan_name}",
+            code=8,
+        )
+
+    native_dir = score.parent
+    log_path: Path | None = native_dir / "generate.log"
+    try:
+        log_path.write_text(
+            f"--- yue2 generate --stage plan stdout ---\n{res.out}\n"
+            f"--- stderr ---\n{res.err}\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        log_path = None
+
+    snapshot_provenance(ctx.session, plans_dir, plan_name, ctx.lyrics_path)
+    meta = read_plan_meta(out_dir)
+    preview = score_preview(score)
+    score_lines = len(preview.splitlines())
+
+    out: dict[str, object] = {
+        "schema": "plan/v1",
+        "ok": True,
+        "provider": "yue2",
+        "model": request_model_name(ctx),
+        "cot": cot,
+        "seed": args.seed,
+        "plan": display_path(out_dir),
+        "plan_name": plan_name,
+        "score_abc": display_path(score),
+        "score_sha256": sha256_file(score),
+        "score_lines": score_lines,
+        "score_preview": preview,
+        "plan_json": display_path(native_dir / "plan.json")
+        if (native_dir / "plan.json").is_file()
+        else None,
+        "plan_manifest": display_path(native_dir / "plan_manifest.json")
+        if (native_dir / "plan_manifest.json").is_file()
+        else None,
+        "request": display_path(request_path),
+        "generate_log": display_path(log_path) if log_path else None,
+        "style_source": ctx.style_source,
+        "truncated": truthy_truncated(meta.get("truncated")),
+        "elapsed_s": elapsed,
+        "retired_previous_attempt": retired,
+        "next": (
+            "Show the score to the user, then render the approved version with "
+            f"--from-plan {display_path(out_dir)} (or edit a copy and pass it as "
+            "--score-file). Rendering an unedited plan reproduces the planned song "
+            "byte-identically."
+        ),
+        "error": None,
+    }
+    print(json.dumps(out, indent=2))
+    return 0
+
+
+def request_model_name(ctx: Context) -> str:
+    return str(ctx.yue2.get("model", "") or "").strip() or "m-a-p/YuE2-3B"
+
+
+# --------------------------------------------------------------------------- #
+# Mode: audio (one-shot, or --from-plan)
+# --------------------------------------------------------------------------- #
+
+
+def resolve_plan_inputs(ctx: Context, args: argparse.Namespace) -> tuple[dict | None, int | None]:
+    """Resolve seed/cot/score from an approved plan. Returns (info, error_code)."""
+    plan_dir = args.from_plan
+    if not plan_dir.is_absolute():
+        candidate = REPO_ROOT / plan_dir
+        plan_dir = candidate if candidate.exists() else (ctx.session / plan_dir)
+    if not plan_dir.is_dir():
+        return None, fail(f"--from-plan is not a directory: {plan_dir}")
+
+    meta = read_plan_meta(plan_dir)
+    plan_request = meta.get("request") or {}
+    if args.score_file is not None:
+        score = args.score_file if args.score_file.is_absolute() else (REPO_ROOT / args.score_file)
+        if not score.is_file():
+            return None, fail(f"--score-file not found: {score}")
+        source = "score-file"
+    else:
+        score = find_score(plan_dir, plan_dir.name)
+        if score is None:
+            return None, fail(
+                f"no score.abc under {plan_dir} - is that a --stage plan output? "
+                "Pass --score-file to supply your own ABC."
+            )
+        source = "plan"
+
+    seed = args.seed if args.seed is not None else plan_request.get("seed")
+    if seed is None:
+        return None, fail(
+            "cannot determine the seed: pass --seed, or point --from-plan at a plan "
+            "whose plan.json records one."
+        )
+    cot = args.cot or str(plan_request.get("cot") or ctx.yue2.get("cot", "full"))
+    if cot == "off":
+        return None, fail(
+            "--cot off cannot render a supplied score: upstream requires cot=full or "
+            "cot=melody when an ABC score is provided."
+        )
+    return (
+        {
+            "plan_dir": plan_dir,
+            "score": score,
+            "score_source": source,
+            "seed": int(seed),
+            "cot": cot,
+            # Compare bytes against the plan's own manifest either way: a verbatim
+            # copy of the planned score supplied via --score-file is NOT an edit.
+            "edited": score_edit_state(plan_dir, score),
+            "plan_score_sha256": (meta.get("manifest") or {}).get("score.abc"),
+            "seed_overridden": args.seed is not None and args.seed != plan_request.get("seed"),
+        },
+        None,
+    )
+
+
+def run_audio(ctx: Context, args: argparse.Namespace) -> int:
+    y = ctx.yue2
+    session = ctx.session
     takes_dir = session / "takes"
     takes_dir.mkdir(parents=True, exist_ok=True)
+
+    plan_info: dict | None = None
+    score_rt: str | None = None
+    if args.from_plan is not None:
+        plan_info, error = resolve_plan_inputs(ctx, args)
+        if error is not None:
+            return error
+        assert plan_info is not None
+        # Validate the score's runtime mapping BEFORE allocating a take number or
+        # writing a request, so a bad path cannot burn a take id.
+        score_rt = ctx.rt.file_path(Path(plan_info["score"]))
+        if score_rt is None:
+            return fail(f"cannot map {plan_info['score']} into the runtime")
+        seed = int(plan_info["seed"])
+        cot = str(plan_info["cot"])
+    else:
+        if args.seed is None and args.take_id is None:
+            return fail("--seed is required unless you render from an approved score (--from-plan)")
+        seed = int(args.seed if args.seed is not None else 0)
+        cot = args.cot or str(y.get("cot", "full"))
+
     if args.take_id is not None:
         take_num = args.take_id
     else:
-        existing = [
-            int(p.stem.split("-")[1])
-            for p in takes_dir.glob("take-*.wav")
-            if p.stem.split("-")[1].isdigit()
-        ]
-        take_num = (max(existing) + 1) if existing else 1
+        take_num = next_index(takes_dir, "take")
     take_name = f"take-{take_num:02d}"
     wav_path = takes_dir / f"{take_name}.wav"
     flac_path = takes_dir / f"{take_name}.flac"
@@ -371,59 +764,34 @@ def main() -> int:
     request_path = takes_dir / f"{take_name}.request.json"
 
     cfg_scale = float(y.get("cfg_scale", 0.0) or 0.0)
-    cot = args.cot or str(y.get("cot", "full"))
     # Only documented request keys: upstream raises ValueError on unknown fields.
     request: dict[str, object] = {
         "id": take_name,
-        "style": style,
-        "lyrics": lyrics,
+        "style": ctx.style,
+        "lyrics": ctx.lyrics,
         "cot": cot,
-        "seed": args.seed,
+        "seed": seed,
     }
     if cfg_scale > 0:
         request["cfg_scale"] = cfg_scale
     request_path.write_text(json.dumps(request, indent=2) + "\n", encoding="utf-8")
 
-    # --- runtime + CLI ------------------------------------------------------
-    rt = Runtime(y, REPO_ROOT)
-    if rt.mode not in ("wsl", "native"):
-        return fail(f"unknown [yue2].runtime {rt.mode!r}")
-    venv = rt.path(str(y.get("venv_dir", "")))
-    if venv is None:
-        return fail(
-            "cannot resolve [yue2].venv_dir inside the runtime"
-            + (" (is WSL installed and running?)" if rt.mode == "wsl" else "")
-        )
-    cli = f"{venv}/bin/yue2"
-    if not rt.bash(f'test -x "{cli}"', timeout=120).ok:
-        return fail(
-            f"YuE2 is not installed at {cli} - run: python scripts/setup_yue2.py",
-            code=2,
-        )
-
-    request_rt = rt.path(str(request_path))
+    request_rt = ctx.rt.file_path(request_path)
     if request_rt is None:
         return fail(f"cannot map {request_path} into the runtime")
     out_dir = takes_dir / f"{take_name}.yue2"
-    out_dir_rt = rt.path(str(out_dir))
+    out_dir_rt = ctx.rt.file_path(out_dir)
     if out_dir_rt is None:
         return fail(f"cannot map {out_dir} into the runtime")
     retired = retire_stale_dir(out_dir)
 
-    cmd = [cli, "generate", "--request", request_rt, "--output", out_dir_rt]
-    model = str(y.get("model", "") or "").strip()
-    if model:
-        cmd += ["--model", rt.path(model) or model]
-    vae = str(y.get("vae", "") or "").strip()
-    if vae:
-        cmd += ["--vae", vae]
-    if y.get("offline"):
-        cmd += ["--offline"]
-    cmd += [str(a) for a in (y.get("extra_generate_args") or [])]
-    cmd += extra_tokens
+    cmd = [ctx.cli, "generate", "--request", request_rt, "--output", out_dir_rt]
+    if score_rt is not None:
+        cmd += ["--abc-file", score_rt]
+    cmd += base_cli_args(ctx)
 
     started = time.monotonic()
-    res = rt.run(cmd, timeout=CLI_TIMEOUT_S)
+    res = ctx.rt.run(cmd, timeout=CLI_TIMEOUT_S)
     elapsed = round(time.monotonic() - started, 1)
 
     audio = find_audio(out_dir, take_name)
@@ -484,34 +852,37 @@ def main() -> int:
         )
     shutil.copyfile(audio, flac_path)
 
-    # --- provenance snapshots ----------------------------------------------
-    for src, suffix in (
-        (session / "style.txt", ".style.txt"),
-        (session / "caption.md", ".caption.md"),
-        (lyrics_path, ".lyrics.txt"),
-        (session / "caption.json", ".caption.json"),
-    ):
-        if src.is_file():
-            shutil.copyfile(src, takes_dir / f"{take_name}{suffix}")
+    snapshot_provenance(session, takes_dir, take_name, ctx.lyrics_path)
 
     size = wav_path.stat().st_size
     sample_rate, channels = wav_format(wav_path)
     audio_s = size / (sample_rate * channels * 2)  # PCM16
     rtf = round(elapsed / audio_s, 2) if audio_s > 0 else None
 
+    rendered_from: dict[str, object] | None = None
+    if plan_info is not None:
+        rendered_from = {
+            "plan": display_path(Path(plan_info["plan_dir"])),
+            "score_source": plan_info["score_source"],
+            "score_sha256": sha256_file(Path(plan_info["score"])),
+            "plan_score_sha256": plan_info["plan_score_sha256"],
+            "score_edited": plan_info["edited"],
+            "seed_overridden": plan_info["seed_overridden"],
+        }
+
     metadata = {
         "schema": "generate_meta/v1",
         "provider": "yue2",
         "take": take_name,
         "endpoint": "local-cli",
-        "model": model or "m-a-p/YuE2-3B",
-        "vae": vae or "standard",
-        "seed": args.seed,
+        "model": request_model_name(ctx),
+        "vae": str(y.get("vae", "") or "").strip() or "standard",
+        "seed": seed,
         "cot": cot,
         "cfg_scale": cfg_scale or None,
-        "style_source": style_source,
+        "style_source": ctx.style_source,
         # Recorded so the frozen request stays honest about model-native overrides.
-        "extra_args": extra_tokens or None,
+        "extra_args": ctx.extra_tokens or None,
         "truncated": truncated,
         "audio_seconds": result.get("audio_seconds"),
         "sample_rate_hz": sample_rate,
@@ -519,6 +890,7 @@ def main() -> int:
         "bytes": size,
         "elapsed_s": elapsed,
         "started_utc": datetime.now(UTC).isoformat(),
+        "rendered_from": rendered_from,
         "artifacts": {
             "wav": str(wav_path),
             "flac": str(flac_path),
@@ -550,8 +922,17 @@ def main() -> int:
     }
     if retired:
         out["retired_previous_attempt"] = retired
-    if extra_tokens:
-        out["extra_args"] = extra_tokens
+    if ctx.extra_tokens:
+        out["extra_args"] = ctx.extra_tokens
+    if rendered_from:
+        out["rendered_from"] = rendered_from
+        if rendered_from["score_edited"] is False:
+            out["note"] = (
+                "rendered from an unedited approved score: reproduces the planned song "
+                "byte-identically on the same machine and settings"
+            )
+        elif rendered_from["score_edited"] is True:
+            out["note"] = "rendered from an EDITED score: this is a new performance of it"
     if truncated:
         out["warning"] = (
             "upstream reported truncation; the audio is playable but the model hit a "
@@ -580,11 +961,95 @@ def main() -> int:
             out["mp3"] = str(mp3)
             out["mp3_bytes"] = mp3.stat().st_size
         else:
-            sys.stderr.write(f"[generate_yue2] mp3 companion skipped: {tr_out}\n")
+            sys.stderr.write(f"[generate_yue2] mp3 conversion skipped: {tr_out}\n")
             out["mp3"] = None
 
     print(json.dumps(out, indent=2))
     return 0
+
+
+# --------------------------------------------------------------------------- #
+# Entry point
+# --------------------------------------------------------------------------- #
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--session", required=True, type=Path)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Required for a new take or a plan; taken from the plan's request when "
+        "rendering with --from-plan",
+    )
+    parser.add_argument(
+        "--config", type=Path, default=REPO_ROOT / "configs" / "provider.toml"
+    )
+    parser.add_argument(
+        "--stage",
+        choices=["plan", "audio"],
+        default="audio",
+        help="'plan' plans the symbolic score and stops (no audio); 'audio' renders",
+    )
+    parser.add_argument(
+        "--cot",
+        choices=["full", "melody", "off"],
+        default=None,
+        help="Override [yue2].cot: symbolic planning mode",
+    )
+    parser.add_argument(
+        "--from-plan",
+        type=Path,
+        default=None,
+        help="Render audio from an approved plan directory (its score.abc is supplied "
+        "to the model as the composition)",
+    )
+    parser.add_argument(
+        "--score-file",
+        type=Path,
+        default=None,
+        help="With --from-plan: render this ABC file instead of the plan's own score "
+        "(use for an edited composition)",
+    )
+    parser.add_argument("--take-id", type=int, default=None)
+    parser.add_argument("--plan-id", type=int, default=None)
+    parser.add_argument(
+        "--extra-arg",
+        action="append",
+        default=[],
+        metavar="ARGS",
+        help="Upstream `yue2 generate` flag(s) forwarded verbatim (repeatable, "
+        'shell-split: --extra-arg "--quantization fp8"). See the model-guide skill '
+        "for the model's full vocabulary.",
+    )
+    args = parser.parse_args()
+
+    if args.stage == "plan" and args.from_plan is not None:
+        return fail_plan("--stage plan and --from-plan are mutually exclusive")
+    if args.score_file is not None and args.from_plan is None:
+        return fail("--score-file requires --from-plan (it renders that plan's composition)")
+    if args.stage == "plan" and args.seed is None:
+        return fail_plan("--seed is required to plan a score")
+
+    extra_tokens, extra_error = split_extra_args(args.extra_arg)
+    if extra_error:
+        return fail_plan(extra_error) if args.stage == "plan" else fail(extra_error)
+
+    if args.stage == "plan":
+        ctx, error = prepare_context(args)
+        if error is not None:
+            return error
+        assert ctx is not None
+        ctx.extra_tokens = extra_tokens
+        return run_plan(ctx, args)
+
+    ctx, error = prepare_context(args)
+    if error is not None:
+        return error
+    assert ctx is not None
+    ctx.extra_tokens = extra_tokens
+    return run_audio(ctx, args)
 
 
 if __name__ == "__main__":

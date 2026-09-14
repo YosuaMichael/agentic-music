@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -366,6 +367,128 @@ def test_audiocpp_warns_that_empty_lyrics_cannot_be_instrumental() -> None:
     assert mod.lyrics_warnings("[Verse]\nsing") == []
 
 
+# --------------------------------------------------------------------------- #
+# yue2 score-first (plan -> review -> render)
+# --------------------------------------------------------------------------- #
+
+
+def test_next_index_counts_plans_and_takes_separately(workdir: Path) -> None:
+    """Plans have their own numbering, so planning never consumes a take id."""
+    mod = _load("generate_yue2.py")
+    assert mod.next_index(workdir / "plans", "plan") == 1  # missing dir is fine
+    plans = workdir / "plans"
+    (plans / "plan-01").mkdir(parents=True)
+    (plans / "plan-02").mkdir()
+    (plans / "plan-01.request.json").write_text("{}", encoding="utf-8")
+    assert mod.next_index(plans, "plan") == 3
+    (plans / "plan-07.edited.abc").write_text("X:1", encoding="utf-8")
+    assert mod.next_index(plans, "plan") == 8
+    # A take-namespace directory must not leak into plan numbering.
+    takes = workdir / "takes"
+    (takes / "take-09.yue2").mkdir(parents=True)
+    assert mod.next_index(takes, "take") == 10
+    assert mod.next_index(plans, "plan") == 8
+
+
+def test_score_edit_detection_uses_bytes_not_paths(workdir: Path) -> None:
+    """A verbatim copy is not an edit; a changed byte is. Manifest-driven."""
+    mod = _load("generate_yue2.py")
+    plan = workdir / "plans" / "plan-01"
+    plan.mkdir(parents=True)
+    score = plan / "score.abc"
+    score.write_text("X:1\nK:D\n\"G\"z4|\n", encoding="utf-8")
+    (plan / "plan_manifest.json").write_text(
+        json.dumps({"score.abc": mod.sha256_file(score)}), encoding="utf-8"
+    )
+    assert mod.score_edit_state(plan, score) is False
+    copy = workdir / "copy.abc"
+    copy.write_text(score.read_text(encoding="utf-8"), encoding="utf-8")
+    assert mod.score_edit_state(plan, copy) is False  # same bytes, different path
+    copy.write_text(score.read_text(encoding="utf-8").replace('"G"', '"Em"'), encoding="utf-8")
+    assert mod.score_edit_state(plan, copy) is True
+    # No manifest => unknown, never guessed.
+    (plan / "plan_manifest.json").unlink()
+    assert mod.score_edit_state(plan, score) is None
+
+
+def test_score_preview_is_capped(workdir: Path) -> None:
+    mod = _load("generate_yue2.py")
+    score = workdir / "score.abc"
+    score.write_text("\n".join(f"line {i}" for i in range(60)), encoding="utf-8")
+    preview = mod.score_preview(score, max_lines=10)
+    lines = preview.splitlines()
+    assert len(lines) == 11 and "50 more lines" in lines[-1]
+    assert mod.score_preview(workdir / "missing.abc") == ""
+
+
+def test_dispatch_rejects_plan_mode_for_models_without_it(env, monkeypatch, capsys) -> None:
+    """minimax-music3 has no plan stage; the dispatcher must say so, not guess."""
+    (env["session"] / "model.json").write_text(
+        json.dumps({"schema": "model_choice/v1", "model": "minimax-music3"}), encoding="utf-8"
+    )
+    mod = _load("generate_take.py")
+    code, out = _run(
+        mod,
+        ["generate_take.py", "--config", str(env["config"]), "--session", str(env["session"]),
+         "--seed", "7", "--stage", "plan"],
+        monkeypatch,
+        capsys,
+    )
+    assert code == 2
+    assert "not supported" in out["error"] and "--stage" in out["error"]
+    assert out["schema"] == "plan/v1"  # the request was a plan, so report as one
+
+
+def test_dispatch_requires_a_seed_unless_rendering_a_plan(env, monkeypatch, capsys) -> None:
+    mod = _load("generate_take.py")
+    code, out = _run(
+        mod,
+        ["generate_take.py", "--config", str(env["config"]), "--session", str(env["session"])],
+        monkeypatch,
+        capsys,
+    )
+    assert code == 2 and "--seed" in out["error"]
+    # With --from-plan the seed comes from the plan, so it is not required.
+    code, out = _run(
+        mod,
+        ["generate_take.py", "--config", str(env["config"]), "--session", str(env["session"]),
+         "--from-plan", str(env["session"] / "plans" / "plan-01")],
+        monkeypatch,
+        capsys,
+    )
+    assert "--seed is required" not in out.get("error", ""), out
+
+
+def test_yue2_plan_mode_rejects_cot_off(env, monkeypatch, capsys) -> None:
+    """cot=off sketches no score, so there is nothing to review."""
+    (env["session"] / "style.txt").write_text("English, warm piano pop", encoding="utf-8")
+    (env["session"] / "lyrics.txt").write_text("[Verse]\nsing", encoding="utf-8")
+    mod = _load("generate_yue2.py")
+    code, out = _run(
+        mod,
+        ["generate_yue2.py", "--config", str(env["config"]), "--session", str(env["session"]),
+         "--seed", "7", "--stage", "plan", "--cot", "off"],
+        monkeypatch,
+        capsys,
+    )
+    assert code == 2
+    assert out["schema"] == "plan/v1" and "cot=off" in out["error"]
+
+
+def test_yue2_score_file_requires_a_plan(env, monkeypatch, capsys) -> None:
+    (env["session"] / "style.txt").write_text("English, warm piano pop", encoding="utf-8")
+    (env["session"] / "lyrics.txt").write_text("[Verse]\nsing", encoding="utf-8")
+    mod = _load("generate_yue2.py")
+    code, out = _run(
+        mod,
+        ["generate_yue2.py", "--config", str(env["config"]), "--session", str(env["session"]),
+         "--seed", "7", "--score-file", "x.abc"],
+        monkeypatch,
+        capsys,
+    )
+    assert code == 2 and "--score-file requires --from-plan" in out["error"]
+
+
 def test_yue2_extra_arg_cannot_falsify_provenance(env, monkeypatch, capsys) -> None:
     """--style/--seed via --extra-arg would desync the frozen take request."""
     (env["session"] / "style.txt").write_text("English, warm piano pop", encoding="utf-8")
@@ -475,10 +598,17 @@ def test_runtime_path_mapping(workdir: Path) -> None:
     rt = mod.Runtime({"runtime": "native"}, repo_root=workdir)
     # Repo-relative paths resolve against the repo root...
     assert rt.path("oss/yue2") == str(workdir / "oss" / "yue2")
-    # ...POSIX-absolute paths pass through, and absolute host paths are accepted
-    # only when the runtime is this host (they cannot be mapped into WSL).
+    # ...POSIX-absolute paths pass through...
     assert rt.path("/root/models/yue2") == "/root/models/yue2"
-    assert rt.path(str(workdir / "abs")) == str(workdir / "abs")
-    wsl = mod.Runtime({"runtime": "wsl"}, repo_root=workdir)
-    assert wsl.path(str(workdir / "abs")) is None
+    # ...and a host-absolute path is accepted by BOTH runtimes. This used to
+    # return None for WSL, which broke every absolute --session / --from-plan
+    # path (a real bug: only relative session paths ever worked).
+    host_abs = workdir / "abs"
+    assert rt.path(str(host_abs)) == str(host_abs)
+    mapped = mod.Runtime({"runtime": "wsl"}, repo_root=workdir).path(str(host_abs))
+    if os.name == "nt":
+        assert mapped is not None and mapped.startswith("/mnt/"), mapped
+        assert mapped.endswith("/abs") and "\\" not in mapped, mapped
+    else:
+        assert mapped == str(host_abs)
     assert rt.path("") is None

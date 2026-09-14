@@ -22,6 +22,13 @@ EXPECTED_SCHEMAS = {
     "clap_score.py": "clap_score/v1",
 }
 
+# Scripts that own more than one stdout contract: a plan is not a take, so
+# `--stage plan` emits plan/v1 rather than pretending to be generate/v1.
+ADDITIONAL_SCHEMAS = {
+    "generate_yue2.py": ["plan/v1"],
+    "generate_take.py": ["plan/v1"],
+}
+
 
 def _load(name: str):
     spec = importlib.util.spec_from_file_location(name[:-3], SCRIPTS / name)
@@ -43,6 +50,10 @@ def test_schema_strings_documented() -> None:
         assert schema in (SCRIPTS / name).read_text(encoding="utf-8"), (
             f"{name} must document its '{schema}' contract in its docstring"
         )
+    for name, schemas in ADDITIONAL_SCHEMAS.items():
+        text = (SCRIPTS / name).read_text(encoding="utf-8")
+        for schema in schemas:
+            assert schema in text, f"{name} must document its '{schema}' contract too"
 
 
 def test_hardware_audit_verdict_shape() -> None:

@@ -5,6 +5,10 @@ Usage:
     python scripts/generate_take.py --session studio/sessions/<song-id> --seed 7 \
         [--take-id N] [--model yue2|minimax-music3] [--config configs/provider.toml]
 
+    # yue2 score-first: plan the composition, approve it, then render it
+    python scripts/generate_take.py --session <dir> --seed 7 --stage plan
+    python scripts/generate_take.py --session <dir> --from-plan <dir>/plans/plan-01
+
 One command for the generate-song skill, so the model -> script mapping lives in
 exactly one place (adding a third model is a one-file change here, not a skill
 edit). The model is resolved in this order:
@@ -19,8 +23,9 @@ deliberately does NOT pre-flight the backend's readiness: the generator itself
 reports a precise, actionable error (and scripts/select_model.py reports
 availability at choice time, which is where the user needs it).
 
-The child's generate/v1 JSON is forwarded verbatim with two additive keys
-(`model`, `model_source`), so callers keep parsing one contract.
+The child's JSON is forwarded verbatim with two additive keys (`model`,
+`model_source`), so callers keep parsing one contract. A `--stage plan` request
+carries `plan/v1` instead of `generate/v1`, because a plan produces no audio.
 
 Exit codes: 0 success; 2 bad inputs/config; otherwise the child's exit code.
 """
@@ -52,7 +57,7 @@ MINIMAX_ENGINE_SCRIPTS = {
 # an argparse usage error from the child. YuE2 has no duration control at all
 # (plan decision Y8); MiniMax Music 3 has no symbolic-planning mode.
 PASSTHROUGH_SUPPORT = {
-    "generate_yue2.py": frozenset({"cot"}),
+    "generate_yue2.py": frozenset({"cot", "stage", "from_plan", "score_file", "plan_id"}),
     "generate_audiocpp.py": frozenset({"duration_sec"}),
     "generate.py": frozenset({"max_new_tokens"}),
 }
@@ -71,6 +76,10 @@ RESERVED_EXTRA_FLAGS = frozenset(
         "--cot",
         "--duration-sec",
         "--max-new-tokens",
+        "--stage",
+        "--from-plan",
+        "--score-file",
+        "--plan-id",
     }
 )
 
@@ -79,25 +88,55 @@ def emit(payload: dict) -> None:
     print(json.dumps(payload, indent=2))
 
 
+# The stdout contract of the request in flight: `plan/v1` when the caller asked
+# for a score-only plan (no audio), otherwise `generate/v1`. Set once in main().
+_SCHEMA = "generate/v1"
+
+
 def fail(message: str, code: int = 2, **extra: object) -> int:
-    emit({"schema": "generate/v1", "ok": False, "error": message, **extra})
+    emit({"schema": _SCHEMA, "ok": False, "error": message, **extra})
     return code
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--session", required=True, type=Path)
-    parser.add_argument("--seed", required=True, type=int)
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Required unless rendering from an approved score (--from-plan), whose "
+        "plan records the seed it was planned with",
+    )
     parser.add_argument(
         "--config", type=Path, default=REPO_ROOT / "configs" / "provider.toml"
     )
     parser.add_argument("--model", default=None, help="Override the session's model choice")
     parser.add_argument("--take-id", type=int, default=None)
     # Passthrough knobs are forwarded only when the caller sets them, so each
-    # backend keeps its own vocabulary (audiocpp --duration-sec, yue2 --cot).
+    # backend keeps its own vocabulary (audiocpp --duration-sec, yue2 --cot/--stage).
     parser.add_argument("--duration-sec", type=int, default=None)
     parser.add_argument("--cot", choices=["full", "melody", "off"], default=None)
     parser.add_argument("--max-new-tokens", type=int, default=None)
+    parser.add_argument(
+        "--stage",
+        choices=["plan", "audio"],
+        default=None,
+        help="yue2 only: 'plan' plans the symbolic score and stops (no audio)",
+    )
+    parser.add_argument(
+        "--from-plan",
+        type=Path,
+        default=None,
+        help="yue2 only: render audio from an approved plan directory",
+    )
+    parser.add_argument(
+        "--score-file",
+        type=Path,
+        default=None,
+        help="yue2 only: with --from-plan, render this (edited) ABC instead",
+    )
+    parser.add_argument("--plan-id", type=int, default=None)
     parser.add_argument(
         "--extra-arg",
         action="append",
@@ -109,6 +148,12 @@ def main() -> int:
         "model-guide skill for each model's own vocabulary.",
     )
     args = parser.parse_args()
+
+    global _SCHEMA
+    _SCHEMA = "plan/v1" if args.stage == "plan" else "generate/v1"
+
+    if args.seed is None and args.from_plan is None:
+        return fail("--seed is required unless you render from an approved score (--from-plan)")
 
     if not args.config.is_file():
         return fail(f"config not found: {args.config}")
@@ -173,6 +218,10 @@ def main() -> int:
         "duration_sec": args.duration_sec,
         "cot": args.cot,
         "max_new_tokens": args.max_new_tokens,
+        "stage": args.stage,
+        "from_plan": args.from_plan,
+        "score_file": args.score_file,
+        "plan_id": args.plan_id,
     }
     wanted = {name for name, value in requested.items() if value is not None}
     supported = PASSTHROUGH_SUPPORT.get(script_name, frozenset())
@@ -212,9 +261,10 @@ def main() -> int:
     cmd = [
         sys.executable, str(script),
         "--session", str(session),
-        "--seed", str(args.seed),
         "--config", str(args.config),
     ]
+    if args.seed is not None:
+        cmd += ["--seed", str(args.seed)]
     if args.take_id is not None:
         cmd += ["--take-id", str(args.take_id)]
     passed: list[str] = []
@@ -227,6 +277,18 @@ def main() -> int:
     if args.max_new_tokens is not None:
         cmd += ["--max-new-tokens", str(args.max_new_tokens)]
         passed.append("max_new_tokens")
+    if args.stage is not None:
+        cmd += ["--stage", args.stage]
+        passed.append("stage")
+    if args.from_plan is not None:
+        cmd += ["--from-plan", str(args.from_plan)]
+        passed.append("from_plan")
+    if args.score_file is not None:
+        cmd += ["--score-file", str(args.score_file)]
+        passed.append("score_file")
+    if args.plan_id is not None:
+        cmd += ["--plan-id", str(args.plan_id)]
+        passed.append("plan_id")
     # Forward each original value behind --extra-arg: the generators take the
     # model-native vocabulary through that flag, not as bare arguments. Use the
     # attached KEY=VALUE form so a value beginning with "--" (e.g. "--quiet") is

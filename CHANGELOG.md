@@ -37,6 +37,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     both from the same interview; each model reads its own native prompt.
   - New model registry in `configs/provider.toml` (`[models]` + `[yue2]`), keeping
     the *model* axis separate from the *engine* axis.
+- **YuE2 score-first workflow: plan → review → render**
+  ([plans/2026-09-14-yue2-score-first-workflow.md](plans/2026-09-14-yue2-score-first-workflow.md)).
+  YuE2 plans an editable ABC score before it renders, and that plan is the creative
+  decision — so it can now be approved (or fixed) before paying for audio.
+  - `scripts/generate_yue2.py --stage plan` plans only and emits the new **`plan/v1`**
+    contract: the score, its SHA-256, a capped `score_preview` ready to show a user, and
+    a `next` hint. ≈19 s, no audio, and no take id consumed.
+  - `--from-plan <dir>` renders an approved plan (≈43 s), taking its seed and `cot` from
+    `plan.json`; `--score-file <abc>` renders an edit of that composition instead.
+  - Plans are first-class artifacts in `<session>/plans/plan-NN/` (the upstream bundle
+    plus request and frozen prompt snapshots), numbered separately from takes.
+  - Takes record `rendered_from: {plan, score_source, score_sha256, plan_score_sha256,
+    score_edited, seed_overridden}`, so any take traces back to the exact composition
+    bytes it realised. Edit detection compares bytes against the plan's integrity
+    manifest, so a verbatim copy is not mislabelled as an edit.
+  - `scripts/generate_take.py` forwards `--stage` / `--from-plan` / `--score-file` /
+    `--plan-id` to yue2 and rejects them for models with no plan stage; `--seed` is now
+    optional when rendering an approved plan.
+  - generate-song makes the score gate the default yue2 flow, with the user free to
+    approve, edit, re-plan, or say "just render it".
+  - Verified: the planner is deterministic for a prompt + seed, and rendering an unedited
+    plan reproduced the one-shot take **byte-identically** (WAV, FLAC and MP3), while an
+    edited score produced different audio with the edit carried through.
 - **`model-guide` skill** — a per-model parameter and capability reference. The models
   are deliberately **not** standardised: each section documents that model's own request
   fields, CLI flags, defaults, capabilities, limits, and measured performance, so an
@@ -58,6 +81,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Absolute session paths broke YuE2 generation.** `Runtime.path()` returned `None` for
+  any Windows absolute path in WSL mode on the theory that host-absolute paths "cannot be
+  mapped" — they can, that is what `/mnt/c/...` is. An absolute `--session` (or
+  `--from-plan`) path failed outright; relative paths had masked it. All three runtime
+  helpers (`generate_yue2.py`, `setup_yue2.py`, `select_model.py`) now map drive-absolute
+  paths onto `/mnt/<drive>`, and the test that had encoded the old behaviour asserts the
+  mapping instead.
 - **Corrected: instrumental-only is unsupported by BOTH models, not just YuE2.**
   MiniMax Music 3 was documented (and configured) as the instrumental path via an
   empty `lyrics.txt`; the owner reports it always sang regardless, and three

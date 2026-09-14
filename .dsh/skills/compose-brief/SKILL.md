@@ -238,4 +238,7 @@ instead of trusting earlier tool results:
 ## Handoff
 
 On confirmation, tell the user you are invoking `generate-song` with this
-session folder.
+session folder. For a `yue2` session, mention that it will first show them the
+**composition** (a ~19 s score-only pass) and only render audio once they approve
+it — so they can judge the structure before paying for a full render. They can
+say "just render it" to skip that gate.

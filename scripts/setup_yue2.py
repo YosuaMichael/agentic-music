@@ -127,6 +127,8 @@ class Runtime:
         return self._home
 
     def path(self, configured: str) -> str | None:
+        """Map a host path into the runtime: expand ~, map repo-relative and
+        drive-absolute Windows paths onto the WSL /mnt/<drive> mount."""
         if not configured:
             return None
         if configured.startswith("~"):
@@ -136,14 +138,16 @@ class Runtime:
             return home + configured[1:]
         if configured.startswith("/"):  # POSIX absolute: already runtime-valid
             return configured
-        if Path(configured).is_absolute():
-            # Host-absolute (e.g. C:\...) only makes sense when the runtime is
-            # this host; it cannot be mapped into WSL.
-            return str(Path(configured)) if self.mode == "native" else None
-        absolute = (self.repo_root / configured).resolve()
+        candidate = Path(configured)
+        if candidate.is_absolute():
+            absolute = candidate
+        else:
+            absolute = (self.repo_root / configured).resolve()
         if self.mode == "native":
             return str(absolute)
         drive = absolute.drive.rstrip(":").lower()
+        if not drive:
+            return None
         tail_path = absolute.as_posix().split(":", 1)[-1]
         return f"/mnt/{drive}{tail_path}"
 

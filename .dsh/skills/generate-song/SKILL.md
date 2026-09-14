@@ -23,6 +23,9 @@ description: >
      before spending GPU time, and expect a `warnings` entry in the result;
    - `caption.md` / `caption.json` must be non-empty *only* for
      `minimax-music3` sessions.
+3. For a `yue2` session, `plans/plan-NN/` (when present) are approved compositions
+   available to render with `--from-plan`; `plans/plan-NN/score.abc` must stay
+   byte-identical to what was approved.
 2. **Music model — ask once, then never again:**
 
    ```bash
@@ -50,17 +53,46 @@ description: >
 3. **Dispatch takes SEQUENTIALLY** — measured faster than concurrent dispatch
    on single-GPU hosts (see plans/2026-08-23-performance-research.md), and YuE2
    is explicitly one-request-at-a-time upstream.
-4. For each take, run as a **background job** — one command, whichever model is
-   recorded; the dispatcher resolves model → generator:
+4. **`yue2`: plan the score first (≈19 s), review it with the user, then render
+   (≈43 s).** This is the default because the composition — not the audio — is the
+   creative decision, and because YuE2 has no length control, so the score is the
+   only way to catch a wrong structure before paying for a render. If the user has
+   already said "just render it", skip to step 5.
+
+   ```bash
+   python scripts/generate_take.py --session studio/sessions/<song-id> --seed <seed> --stage plan
+   ```
+
+   Parse `plan/v1`: show the user `score_preview` (capped and ready to quote),
+   `score_lines`, and `elapsed_s`. Then have them choose:
+   - **Approve → render** (step 5 with `--from-plan <plan>`)
+   - **Edit the score** — save their edit as `plans/plan-NN.edited.abc` beside the
+     plan and render that (step 5 with `--from-plan` + `--score-file`)
+   - **Re-plan** with another seed (repeat this step; each plan is only ≈19 s)
+
+   Never edit `plans/plan-NN/score.abc` in place: its manifest is what proves what
+   was approved, and upstream refuses a modified plan. Edits get their own file.
+   `minimax-music3` has no plan stage — `--stage plan` is rejected for it — so do
+   not offer this gate there.
+5. For the approved plan or the one-shot take, run as a **background job** — one
+   command, whichever model is recorded; the dispatcher resolves model → generator:
 
    ```bash
    python scripts/generate_take.py --session studio/sessions/<song-id> --seed <seed>
+
+   python scripts/generate_take.py --session studio/sessions/<song-id> \
+       --from-plan studio/sessions/<song-id>/plans/plan-01
+
+   python scripts/generate_take.py --session studio/sessions/<song-id> \
+       --from-plan studio/sessions/<song-id>/plans/plan-01 \
+       --score-file studio/sessions/<song-id>/plans/plan-01.edited.abc
    ```
 
    `generate/v1` comes back with additive `model`, `model_source`
-   (`session` | `default` | `flag`) and `generator` fields. For a deliberate
-   one-off A/B across models, pass `--model <id>`; per-backend knobs are
-   forwarded only where they exist (`--cot` for yue2, `--duration-sec` for
+   (`session` | `default` | `flag`) and `generator` fields, plus `rendered_from`
+   when an approved plan was rendered. For a deliberate one-off A/B across
+   models, pass `--model <id>`; per-backend knobs are forwarded only where they
+   exist (`--cot` / `--stage` / `--from-plan` for yue2, `--duration-sec` for
    audiocpp, `--max-new-tokens` for the SGLang path) and are rejected with a
    precise message otherwise.
 5. Parse each result's `generate/v1` JSON. On success it names the written
@@ -76,6 +108,9 @@ description: >
 6. Gate: every requested take exists as a non-empty WAV with valid metadata.
    If a result reports `"truncated": true`, the audio is still usable — report
    it as a caveat (usually lyrics too long for the model's token budget).
+   If `rendered_from.score_edited` is `false`, say the take reproduces the
+   approved plan **byte-identically**; if `true`, say it is a new performance of
+   the edited composition. Never imply one when the other is true.
 7. **Report quick facts, then offer next actions.** Present a compact table
    per take: model, audio duration, generation wall time (elapsed_s), RTF, MP3
    size (and the player link when the artifact server runs). Then ask the user
@@ -85,7 +120,7 @@ description: >
    - **Run auto-judgement** (metrics + CLAP ranking)
    - **Done / edit caption & lyrics**
 
-   Loop back to step 2 for generation choices (seeds continue cycling);
+   Loop back to step 3 for generation choices (seeds continue cycling);
    invoke `judge-quality` only after an explicit yes to that option.
 
 ## Learnings protocol

@@ -99,6 +99,33 @@ judged. YuE2 takes also keep their upstream artifacts, including the editable
 [`scripts/serve_artifacts.py`](scripts/serve_artifacts.py), which adds per-take player
 pages) to listen from any device.
 
+### Review the composition before paying for the audio (YuE2)
+
+YuE2 writes an editable melody-and-chord score *before* it renders. Because that plan is
+the creative decision — and there is no length knob to fall back on — the default YuE2
+flow shows it to you first:
+
+```bash
+# 1. plan only: a symbolic score, no audio (~19 s)   -> plan/v1
+python scripts/generate_take.py --session studio/sessions/<your-id> --seed 7 --stage plan
+
+# 2. render the approved composition (~43 s); seed and cot come from the plan
+python scripts/generate_take.py --session studio/sessions/<your-id> \
+    --from-plan studio/sessions/<your-id>/plans/plan-01
+
+# 2b. edit a copy of the score and render that instead
+python scripts/generate_take.py --session studio/sessions/<your-id> \
+    --from-plan studio/sessions/<your-id>/plans/plan-01 \
+    --score-file studio/sessions/<your-id>/plans/plan-01.edited.abc
+```
+
+Plans live in their own `plans/plan-NN/` namespace (no audio, and planning never consumes
+a take id), and every rendered take records `rendered_from` — the plan, the score's
+SHA-256, and whether you edited it — so a take traces back to the exact composition it
+realised. Approving a plan unchanged reproduces the one-shot song **byte-identically**;
+measurements and the plan file layout are in
+[plans/2026-09-14-yue2-score-first-workflow.md](plans/2026-09-14-yue2-score-first-workflow.md).
+
 ## Architecture
 
 Two agent workspaces, one pipeline:

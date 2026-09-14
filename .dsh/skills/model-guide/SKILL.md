@@ -52,7 +52,7 @@ point of this skill.
 | Weights license | **CC BY-NC 4.0 — non-commercial only** | MiniMax-Music3 Community License |
 | Instrumentals | ❌ impossible (lyrics required) | ❌ **also impossible** — accepts empty lyrics, then sings anyway |
 | Prompt artifact | `style.txt` (short comma list) | `caption.md` (Structured Caption) |
-| Editable score | ✅ `takes/take-NN.yue2/score.abc` | ❌ |
+| Editable score | ✅ `score.abc` per take, plus a **review gate**: plan first (≈19 s) → approve or edit → render (≈43 s) — see §1.7 | ❌ |
 | Length control | ❌ none — model decides | ✅ `--duration-sec` / `--max-new-tokens` |
 | Engines | one (`yue2` CLI, WSL on Windows) | `audiocpp` (Windows-native) or `local` (SGLang server) |
 | Measured on this machine | see §1.6 (107.8 s song in 45.5 s model time) | see §2.5 |
@@ -205,9 +205,53 @@ Notes that matter when reading the table:
 - Output level varies by mode: `cot=full` peaked at −1.4 dBFS here, `cot=off` at
   0.0 dBFS (worth a clipping flag in `judge-quality`).
 
+### 1.7 Score-first: plan the composition, approve it, then render
+
+Because YuE2 plans before it renders, and has **no duration control**, the composition is
+worth approving *before* paying for audio. This is the default `yue2` flow (plan decision
+S4; [plans/2026-09-14-yue2-score-first-workflow.md](../../../plans/2026-09-14-yue2-score-first-workflow.md)).
+
+```bash
+# 1. plan only — score, no audio (≈19 s); emits plan/v1
+python scripts/generate_take.py --session <dir> --seed 7 --stage plan
+
+# 2. render the approved plan (≈43 s); seed and cot come from the plan
+python scripts/generate_take.py --session <dir> --from-plan <dir>/plans/plan-01
+
+# 2b. render an edited composition (never edit the plan's own score in place)
+python scripts/generate_take.py --session <dir> --from-plan <dir>/plans/plan-01 \
+    --score-file <dir>/plans/plan-01.edited.abc
+```
+
+Artifacts: `plans/plan-NN/` (`score.abc`, `plan.json`, `abc_tokens.npy`, `prefix.npy`,
+`plan_manifest.json`, `generate.log`), `plans/plan-NN.request.json`, plus frozen
+`plans/plan-NN.style.txt` / `.lyrics.txt` snapshots. A plan is **not** a take: no audio, its
+own numbering, so planning never consumes a take id. `plan/v1` carries the score, its
+SHA-256, a capped `score_preview` ready to show a user, and a `next` hint.
+
+What is guaranteed, all measured (2026-09-14, RTX 4090, offline):
+
+| Property | Evidence |
+|---|---|
+| The planner is deterministic for a prompt + seed | plan-only `score.abc` byte-identical to the one-shot run's |
+| Approving an unedited plan does not change the music | plan-rendered take byte-identical to the one-shot take (WAV/FLAC/MP3) |
+| An edit changes the song and is carried through | 25× `"G"`→`"Em"` → different audio, and the take's `score.abc` == the edit |
+| Verbatim copies are not mislabelled as edits | edit detection compares bytes against the plan manifest, not paths |
+| The plan's integrity is checkable | upstream `SymbolicPlan.load()` reproduced the take sample-exactly and refused a tampered plan |
+
+A take rendered this way records `rendered_from: {plan, score_source, score_sha256,
+plan_score_sha256, score_edited, seed_overridden}` in `takes/take-NN.metadata.json`, so any
+take traces back to the exact composition bytes it realised. Two limits to keep in mind:
+`cot=off` sketches no score at all (`--stage plan` is refused — there is nothing to review),
+and `--seed` is required for a plan or one-shot take but comes from `plan.json` when
+rendering (an explicitly different seed is recorded as `seed_overridden: true`, never
+silent). `SymbolicPlan.load()` (sample-exact reuse) is documented upstream but **not wired**
+here — our pipeline drives the CLI.
+
 ---
 
 ## 2. `minimax-music3` — MiniMax Music 3
+
 
 **Identity.** `MiniMaxAI/MiniMax-Music3` weights; engine chosen by
 `[provider].type`. The same model, two very different engines — and the engine
